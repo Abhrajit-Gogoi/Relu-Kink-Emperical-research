@@ -1,0 +1,47 @@
+{
+  "script": "run_exp0_verify.py",
+  "git_commit": null,
+  "torch_version": "2.15.0+cpu",
+  "python_version": "3.14.3",
+  "device": "cpu",
+  "dtypes": [
+    "float64",
+    "float32",
+    "float16",
+    "bfloat16"
+  ],
+  "seed_list": [
+    0
+  ],
+  "rounded_epsilon": {
+    "float64": 1e-05,
+    "float32": 9.999999747378752e-06,
+    "float16": 1.0013580322265625e-05,
+    "bfloat16": 1.0013580322265625e-05
+  },
+  "batch_index_file": "results/exp0_twin_batches.npz",
+  "deterministic_algorithms": true,
+  "deterministic_error": null,
+  "n_uniform_draws": 1000000,
+  "uniform_interval": [
+    -5.0,
+    5.0
+  ],
+  "draw_procedure": "float32 uniform_, cast to the working dtype, drop x == 0",
+  "n_nonzero_samples": {
+    "float32": 1000000,
+    "bfloat16": 1000000
+  },
+  "probe_all_passed": true,
+  "twin": {
+    "final_l1": 0.0,
+    "max_l1": 0.0,
+    "parameters_equal": true,
+    "steps": 20,
+    "seed": 0,
+    "batch_size": 128,
+    "lr": 0.01,
+    "architecture": "Linear(16, 32) -> ProxyReLU(0) -> Linear(32, 4)"
+  },
+  "gate_passed": true
+}
