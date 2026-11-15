@@ -16,6 +16,20 @@ import torch.nn.functional as F
 from src.activations import ProxyReLU
 
 
+def preferred_device() -> torch.device:
+    """Use the laptop GPU for every later stage.
+
+    Stage 2 ran on the CPU wheel (``torch 2.15.0+cpu``). The FP16 Monte Carlo
+    alone took about three hours. This laptop is an RTX 4060, and the CUDA
+    build installed for later stages is ``torch==2.14.1+cu130``. When CUDA is
+    visible, return that device and put models and batches on it. CPU is only
+    the fallback for a build that cannot see a GPU.
+    """
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 def seed_everything(seed: int) -> dict:
     """Seed Python, NumPy, and PyTorch. Request deterministic kernels."""
     os.environ["PYTHONHASHSEED"] = str(seed)

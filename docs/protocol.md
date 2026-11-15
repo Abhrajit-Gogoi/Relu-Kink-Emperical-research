@@ -16,7 +16,7 @@ How does \(s = \mathrm{ReLU}'(0) \in \{0, 0.5, 1\}\) interact with precision in 
 6. Pixels come from torchvision MNIST in \([0, 1]\), with no augmentation and no further standardization, then cast to the run dtype. Batch indices are saved.
 7. Loss is cross-entropy. Optimizer is SGD with learning rate 0.01, momentum 0, weight decay 0, batch size 128.
 8. `with_bias_and_shift=True` enables linear biases and the LayerNorm or BatchNorm shift, and leaves scales learnable. `False` removes linear biases and the shift. RMSNorm has no shift; under `False` its learnable scale is removed as well.
-9. Python, NumPy, and PyTorch seeds are fixed, and `torch.use_deterministic_algorithms(True)` is requested. A twin pair of \(s = 0\) models is the empirical check: their L1 distance stays 0.
+9. Python, NumPy, and PyTorch seeds are fixed, and `torch.use_deterministic_algorithms(True)` is requested. A twin pair of \(s = 0\) models is the empirical check: their L1 distance stays 0. Runs after Stage 2 use the laptop GPU through `preferred_device()` when CUDA is visible. CPU is the fallback when the installed build cannot see a GPU. The device that actually ran is written in the metadata. Stage 2 itself was the CPU wheel.
 10. Each runner writes `results/<script>_meta.json` with the commit, torch version, device, dtypes, seeds, rounded epsilon, and the batch-index file.
 
 Relative gradient discrepancy, on impacted pairs only:
@@ -39,7 +39,7 @@ The work proceeds in seven checkpoints. Later checkpoints wait until the current
 | 6. Tables and figures | `figures/*.pdf`, `paper/tables/` | Each of H1–H4 maps to a table row and a figure panel. |
 | 7. Manuscript | `paper/main.pdf` | Every quoted number matches a CSV. Citations resolve. |
 
-Auxiliary factors (CIFAR-10, Adam, learning-rate searches) are dropped if they take more than four hours of debugging. If the micro-transformer attention block is still not training correctly late in checkpoint 5, the transformer arm is replaced by topology C below, and the manuscript says the attention contrast was not run.
+Auxiliary factors (CIFAR-10, Adam, learning-rate searches) are dropped if they take more than four hours of debugging. The micro-transformer arm has been dropped entirely from this study; Experiment 3 runs only the residual MLP (topology C). The transformer comparison and the attention-vs-FFN gradient ratio metric are not part of this study.
 
 ## Experiment 0 — operator audit
 
@@ -87,7 +87,7 @@ The header of `results/exp1_monte_carlo.csv` is: cell identifiers (`precision`, 
 
 ## Experiment 2 — coupled trajectories
 
-Three topologies, width 256, three blocks. \(R = 10\) seeds, \(K = 200\) shared minibatches, precisions FP64, FP32, and BF16, norms none, LayerNorm, and RMSNorm.
+Three topologies, width 256, three blocks. \(R = 10\) seeds, \(K = 200\) shared minibatches, precisions FP64, FP32, and BF16, norms none, LayerNorm, and RMSNorm. This matrix runs on a Google Colab GPU started with the Colab CLI (`colab new --gpu T4`), not on the laptop. Topology A, NoNorm, FP64 and FP32 are reloaded from the Stage 2 trajectory file when the seeds and the saved batch indices match.
 
 - **A.** \(a_l = \mathrm{ReLU}_s(\mathrm{Norm}_l(W_l a_{l-1} + b_l))\).
 - **B, kink on the highway.** \(a_l = \mathrm{ReLU}_s\big(a_{l-1} + W_{l,2}\mathrm{ReLU}_s(\mathrm{Norm}_l(W_{l,1}a_{l-1}+b_{l,1}))\big)\).
@@ -104,9 +104,9 @@ stored as \(K+1\) when the copies never split. Each step logs minimum absolute p
 ## Experiment 3 — twenty epochs
 
 - **Residual MLP.** Topology C, three blocks, width 256, input 784, output 10. Norms: none, LayerNorm, RMSNorm.
-- **Micro-transformer.** 49 patches of \(4\times 4\), embedding width 64, one Pre-Norm block, 4 heads of dimension 16, feed-forward width 256, mean-pool, final norm, linear classifier to 10 classes. Norms: LayerNorm and RMSNorm. An optional second block is allowed only after the one-block matrix is complete.
+- The micro-transformer arm has been dropped; only the residual MLP (topology C) is run.
 - Precisions: FP32 and BF16.
-- Activations: ReLU at \(s \in \{0, 0.5, 1\}\), and `nn.GELU()`.
+- Activations: ReLU at \(s \in \{0, 0.5, 1\}\), and `nn.GELU()` (GELU not yet implemented).
 - Five paired seeds, 20 epochs.
 
 MNIST is required. Fashion-MNIST repeats the same matrix after MNIST is complete. If finishing Fashion-MNIST would cut MNIST short, MNIST is the reported dataset and Fashion-MNIST is marked incomplete.

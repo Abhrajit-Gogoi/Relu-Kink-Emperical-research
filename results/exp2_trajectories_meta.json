@@ -1,0 +1,43 @@
+{
+  "script": "run_exp2_trajectory.py",
+  "mode": "stage4",
+  "git_commit": null,
+  "torch_version": "2.14.1+cu130",
+  "python_version": "3.13.16",
+  "device": "cuda",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "k": 200,
+  "batch_size": 128,
+  "lr": 0.01,
+  "precisions": [
+    "bfloat16",
+    "float32",
+    "float64"
+  ],
+  "topologies": [
+    "A",
+    "B",
+    "C"
+  ],
+  "norms": [
+    "LayerNorm",
+    "NoNorm",
+    "RMSNorm"
+  ],
+  "batch_index_file": "results/reproduction_batch_indices.npy",
+  "csv": "results/exp2_trajectories_partial.csv",
+  "summary_csv": "results/exp2_summary_partial.csv",
+  "max_twin_l1": 0.0,
+  "colab": true
+}

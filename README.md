@@ -32,7 +32,14 @@ references.bib
 
 ## Setup
 
-Python 3.10 or newer. On a CPU-only machine, install the CPU wheel before the rest of the requirements so pip does not pull a CUDA build:
+Python 3.10 or newer. This laptop has an RTX 4060. Later stages use it. The installed build is `torch==2.14.1+cu130` and `torchvision==0.29.1+cu130`:
+
+```bash
+pip install torch==2.14.1+cu130 torchvision==0.29.1+cu130 --index-url https://download.pytorch.org/whl/cu130
+pip install -r requirements.txt
+```
+
+The CPU wheel is only for a machine with no GPU. Stage 2 was run on `torch 2.15.0+cpu`.
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu

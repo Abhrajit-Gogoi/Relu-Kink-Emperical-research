@@ -109,8 +109,60 @@ def test_fp16_backward_stays_in_fp16():
 
 
 def test_stage_cell_lists():
+    from scripts.run_exp1_monte_carlo import result_paths
+
     assert len(reproduction_jobs()) == 3
     assert len(stage3_jobs()) == 32
+    precisions = {job["precision"] for job in stage3_jobs()}
+    norms = {job["norm"] for job in stage3_jobs()}
+    assert precisions == {"float64", "float32", "float16", "bfloat16"}
+    assert norms == {"NoNorm", "BatchNorm1d", "LayerNorm", "RMSNorm"}
+    assert sum(job["with_bias_and_shift"] for job in stage3_jobs()) == 16
+    csv_name, meta_name = result_paths("full", "bfloat16", True)
+    assert csv_name == "parts/exp1_monte_carlo_bfloat16.csv"
+    assert meta_name == "parts/exp1_monte_carlo_meta_bfloat16.json"
+    assert result_paths("full", None, True)[0] == "exp1_monte_carlo.csv"
+    assert result_paths("full", None, True)[1] != "run_exp1_monte_carlo_meta.json"
+    assert result_paths("reproduction", None, True) == (
+        "reproduction_mc.csv",
+        "run_exp1_monte_carlo_meta.json",
+    )
+
+
+def test_stage3_reuses_the_saved_batch_file_and_bf16_cells_run():
+    import numpy as np
+    from pathlib import Path
+
+    from scripts.run_exp1_monte_carlo import load_saved_batches
+
+    index_path = Path(__file__).resolve().parents[1] / "results" / "reproduction_batch_indices.npy"
+    saved = np.load(index_path)
+    used = load_saved_batches(index_path, 100, 128, 60000, 0)
+    assert used.shape == (100, 128)
+    assert np.array_equal(used.numpy(), saved[:100])
+    images = torch.rand(16, 8)
+    labels = torch.randint(0, 3, (16,))
+    index = torch.arange(8).view(1, 8)
+    for norm in ("NoNorm", "BatchNorm1d", "LayerNorm", "RMSNorm"):
+        for bias in (True, False):
+            rows, info = run_cell_counts(
+                {
+                    "precision": "bfloat16",
+                    "norm": norm,
+                    "with_bias_and_shift": bias,
+                    "keep_native_dtype": True,
+                },
+                images,
+                labels,
+                index,
+                m_inits=1,
+                slopes=(0.5, 1.0),
+                init_seed0=0,
+                widths=(8, 4, 3),
+            )
+            assert len(rows) == 2
+            assert info["n_pairs"]["1.0"] == 1
+            assert rows[0]["norm"] == norm
 
 
 def test_monte_carlo_cell_on_a_tiny_net():
@@ -131,6 +183,33 @@ def test_monte_carlo_cell_on_a_tiny_net():
     assert {row["s"] for row in rows} == {"0.5", "1.0"}
     assert info["n_pairs"]["0.5"] == 4
     assert rows[0]["grad_cosine_l4"] == ""
+
+
+def test_stage4_matrix_skips_two_cells_and_a_residual_twin_stays_together():
+    from scripts.run_exp2_trajectory import STAGE4_REUSED, stage4_jobs, stage4_output_name
+
+    jobs = stage4_jobs()
+    assert len(jobs) == 27
+    assert sum(bool(job["reuse"]) for job in jobs) == 2
+    assert STAGE4_REUSED == {("A", "float64", "NoNorm"), ("A", "float32", "NoNorm")}
+    assert stage4_output_name(None, None, None, True) == ("exp2_trajectories.csv", "exp2_summary.csv")
+    assert stage4_output_name("B", "bfloat16", "LayerNorm", True)[0] == "parts/exp2_B_bfloat16_LayerNorm.csv"
+    images = torch.rand(16, 8)
+    labels = torch.randint(0, 3, (16,))
+    index = torch.arange(8).view(1, 8)
+    records = run_seed(
+        1,
+        "float32",
+        images,
+        labels,
+        index,
+        norm="NoNorm",
+        topology="C",
+        widths=(8, 4, 3),
+        device=torch.device("cpu"),
+    )
+    assert max(float(row["twin_l1_dist"]) for row in records) == 0.0
+    assert records[0]["grad_cosine_sim_step"] != ""
 
 
 def test_coupled_twin_stays_together_and_summary_groups_checkpoints():

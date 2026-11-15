@@ -234,8 +234,14 @@ def build_mlp(
     norm: str = "NoNorm",
     with_bias_and_shift: bool = True,
     keep_native_dtype: bool = True,
+    device: torch.device | None = None,
 ) -> ConfigurableMLP:
-    """Seed, draw an FP32 initialization, then cast the state dict to ``dtype``."""
+    """Seed, draw an FP32 initialization, then cast to ``dtype`` and ``device``.
+
+    Study runners pass :func:`src.determinism.preferred_device`. A missing
+    device stays on CPU so a caller that builds its own batch does not have
+    to guess the GPU.
+    """
     seed_everything(seed)
     model = ConfigurableMLP(
         widths=widths,
@@ -245,7 +251,8 @@ def build_mlp(
         keep_native_dtype=keep_native_dtype,
     )
     initialize_kaiming_(model)
-    if dtype != torch.float32:
-        model.to(dtype)
+    target = torch.device("cpu") if device is None else device
+    if dtype != torch.float32 or target.type != "cpu":
+        model.to(device=target, dtype=dtype)
     set_slope(model, s)
     return model

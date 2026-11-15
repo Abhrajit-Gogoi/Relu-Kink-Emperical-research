@@ -222,12 +222,19 @@ def parameters_identical(left: nn.Module, right: nn.Module) -> bool:
 
 
 def linear_modules(model: nn.Module) -> list[nn.Linear]:
+    """Named ``fc1``, ``fc2``, ... for the MLP. Otherwise every ``nn.Linear`` in module order.
+
+    Residual blocks do not use the ``fc{i}`` names on the top module. Falling
+    through to every linear keeps the Stage 4 gradient cosine defined.
+    """
     found = []
     index = 1
     while hasattr(model, f"fc{index}"):
         found.append(getattr(model, f"fc{index}"))
         index += 1
-    return found
+    if found:
+        return found
+    return [module for module in model.modules() if isinstance(module, nn.Linear)]
 
 
 def capture_grads(model: nn.Module, inputs: torch.Tensor, targets: torch.Tensor, slope: float) -> GradPack:

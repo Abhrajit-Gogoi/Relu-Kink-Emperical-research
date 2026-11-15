@@ -1,4 +1,9 @@
-"""Static Monte Carlo bifurcation volume. Stage 2 runs ``--mode reproduction``."""
+"""Static Monte Carlo bifurcation volume.
+
+``--mode reproduction`` is Stage 2. ``--mode full`` is Stage 3: 4 precisions,
+4 norms, and 2 bias settings, 32 cells, each with slopes 0.5 and 1 against 0.
+Stage 3 is prepared here and is not started by importing this module.
+"""
 
 from __future__ import annotations
 
@@ -76,6 +81,65 @@ def reproduction_jobs() -> list[dict]:
     ]
 
 
+def result_paths(mode: str, precision: str | None, official_sample: bool) -> tuple[str, str]:
+    """CSV and meta paths relative to ``results/``.
+
+    An official per-precision Stage 3 run writes under ``parts/`` so four
+    precisions can run together. The Stage 2 meta file is a different name
+    from the Stage 3 meta file.
+    """
+    if mode == "reproduction":
+        if precision is not None and official_sample:
+            return (
+                f"parts/reproduction_mc_{precision}.csv",
+                f"parts/run_exp1_monte_carlo_meta_{precision}.json",
+            )
+        csv_name = "reproduction_mc.csv" if official_sample and precision is None else "reproduction_mc_partial.csv"
+        return csv_name, "run_exp1_monte_carlo_meta.json"
+    if precision is not None and official_sample:
+        return (
+            f"parts/exp1_monte_carlo_{precision}.csv",
+            f"parts/exp1_monte_carlo_meta_{precision}.json",
+        )
+    csv_name = "exp1_monte_carlo.csv" if official_sample and precision is None else "exp1_monte_carlo_partial.csv"
+    return csv_name, "exp1_monte_carlo_meta.json"
+
+
+def load_saved_batches(path: Path, n_batches: int, batch_size: int, n_items: int, seed: int) -> torch.Tensor:
+    """Reuse the Stage 2 index file when it is already on disk.
+
+    Regenerating the permutation after a PyTorch upgrade can change the
+    batches. Stage 3 reads the first ``n_batches`` rows of the saved file.
+    """
+    import numpy as np
+
+    if path.exists():
+        stored = torch.from_numpy(np.load(path)).to(torch.long)
+        if stored.ndim != 2 or stored.shape[1] != batch_size or stored.shape[0] < n_batches:
+            raise ValueError(f"{path} has shape {tuple(stored.shape)}, need at least ({n_batches}, {batch_size})")
+        return stored[:n_batches].contiguous()
+    made = make_batch_indices(n_items, n_batches, batch_size, seed)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(path, made.numpy())
+    return made
+
+
+def failure_rows(job: dict, slopes: tuple[float, ...], m_inits: int, q_batches: int) -> list[dict]:
+    """Identity columns for a cell whose dtype could not run. Metrics stay blank."""
+    rows = []
+    for slope in slopes:
+        row = {column: "" for column in MC_COLUMNS}
+        row["precision"] = job["precision"]
+        row["norm"] = job["norm"]
+        row["with_bias_and_shift"] = str(job["with_bias_and_shift"]).lower()
+        row["s"] = _slope_label(slope)
+        row["keep_native_dtype"] = str(job["keep_native_dtype"]).lower()
+        row["hoeffding_ci_95"] = fmt_float(hoeffding_ci_95(m_inits))
+        row["mcdiarmid_ci_95"] = fmt_float(mcdiarmid_ci_95(m_inits, q_batches))
+        rows.append(row)
+    return rows
+
+
 def stage3_jobs() -> list[dict]:
     jobs = []
     for precision in STAGE3_PRECISIONS:
@@ -101,8 +165,12 @@ def run_cell_counts(
     slopes: tuple[float, ...],
     init_seed0: int,
     widths: tuple[int, ...] = (784, 256, 256, 256, 10),
+    device: torch.device | None = None,
 ) -> tuple[list[dict], dict]:
+    from src.determinism import preferred_device
+
     dtype = DTYPE_OF[job["precision"]]
+    target = preferred_device() if device is None else device
     tracker = KinkCollisionTracker()
     stats = {slope: empty_cell_stats() for slope in slopes}
     weights_hit = {slope: 0 for slope in slopes}
@@ -115,12 +183,13 @@ def run_cell_counts(
             norm=job["norm"],
             with_bias_and_shift=job["with_bias_and_shift"],
             keep_native_dtype=job["keep_native_dtype"],
+            device=target,
         )
         handles = attach_kink_hooks(model, tracker)
         hit = {slope: False for slope in slopes}
         for batch in batch_index:
-            inputs = images.index_select(0, batch).to(dtype)
-            targets = labels.index_select(0, batch)
+            inputs = images.index_select(0, batch).to(device=target, dtype=dtype)
+            targets = labels.index_select(0, batch).to(device=target)
             tracker.recording = True
             baseline = capture_grads(model, inputs, targets, 0.0)
             tracker.recording = False
@@ -213,57 +282,59 @@ def main() -> int:
     parser.add_argument("--batch-seed", type=int, default=0)
     parser.add_argument("--precision", choices=tuple(DTYPE_OF), default=None)
     args = parser.parse_args()
+    from src.determinism import preferred_device
+
+    print(f"device {preferred_device()}", flush=True)
     m_inits = args.m if args.m is not None else 200
     q_batches = args.q if args.q is not None else 100
     jobs = reproduction_jobs() if args.mode == "reproduction" else stage3_jobs()
     if args.precision is not None:
         jobs = [job for job in jobs if job["precision"] == args.precision]
     images, labels = load_mnist_train(ROOT / "data")
-    # Trajectory stage uses 200 batches. Keep at least that many indices on disk.
-    n_batches = max(q_batches, 200)
-    indices = make_batch_indices(images.shape[0], n_batches, BATCH_SIZE, args.batch_seed)
-    RESULTS.mkdir(parents=True, exist_ok=True)
-    import numpy as np
-
+    # The on-disk file has 200 batches from Stage 2. Read it; do not draw a new permutation.
     index_path = RESULTS / "reproduction_batch_indices.npy"
-    if not index_path.exists():
-        np.save(index_path, indices.numpy())
-    used = indices[:q_batches]
+    requested = q_batches if index_path.exists() else max(q_batches, 200)
+    used = load_saved_batches(index_path, requested, BATCH_SIZE, images.shape[0], args.batch_seed)
+    used = used[:q_batches]
     rows: list[dict] = []
     cell_info = []
     for job in jobs:
-        job_rows, info = run_cell_counts(job, images, labels, used, m_inits, REPRODUCTION_SLOPES, args.init_seed0)
+        print(
+            f"{args.mode} {job['precision']} {job['norm']} bias={job['with_bias_and_shift']}",
+            flush=True,
+        )
+        try:
+            job_rows, info = run_cell_counts(job, images, labels, used, m_inits, REPRODUCTION_SLOPES, args.init_seed0)
+            cell_info.append({"job": job, "status": "ok", **info})
+        except RuntimeError as exc:
+            job_rows = failure_rows(job, REPRODUCTION_SLOPES, m_inits, q_batches)
+            info = {"status": "failed", "exception": f"{type(exc).__name__}: {exc}"}
+            cell_info.append({"job": job, **info})
+            print(f"failed cell {job['precision']} {job['norm']} bias={job['with_bias_and_shift']}: {exc}", flush=True)
         rows.extend(job_rows)
-        cell_info.append({"job": job, **info})
-    official = args.m is None and args.q is None and args.precision is None
-    if args.precision is not None and args.m is None and args.q is None and args.mode == "reproduction":
-        out_name = f"parts/reproduction_mc_{args.precision}.csv"
-    elif args.mode == "reproduction":
-        out_name = "reproduction_mc.csv" if official else "reproduction_mc_partial.csv"
-    else:
-        out_name = "exp1_monte_carlo.csv" if official else "exp1_monte_carlo_partial.csv"
+    official_sample = args.m is None and args.q is None
+    out_name, meta_name = result_paths(args.mode, args.precision, official_sample)
     write_csv(RESULTS / out_name, rows)
+    device = preferred_device()
     meta = {
         "script": "run_exp1_monte_carlo.py",
         "mode": args.mode,
         "git_commit": None,
         "torch_version": torch.__version__,
         "python_version": platform.python_version(),
-        "device": "cuda" if torch.cuda.is_available() else "cpu",
+        "device": str(device),
+        "device_name": torch.cuda.get_device_name(device) if device.type == "cuda" else "",
         "m": m_inits,
         "q": q_batches,
         "batch_size": BATCH_SIZE,
         "init_seed0": args.init_seed0,
         "batch_seed": args.batch_seed,
         "batch_index_file": "results/reproduction_batch_indices.npy",
-        "slopes": list(REPRODUCTION_SLOPES),
+        "slopes": ["0.5", "1.0"],
         "csv": f"results/{out_name}",
         "cells": cell_info,
     }
-    if args.precision is not None and args.m is None and args.q is None and args.mode == "reproduction":
-        meta_path = RESULTS / "parts" / f"run_exp1_monte_carlo_meta_{args.precision}.json"
-    else:
-        meta_path = RESULTS / "run_exp1_monte_carlo_meta.json"
+    meta_path = RESULTS / meta_name
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(f"wrote results/{out_name}", flush=True)
