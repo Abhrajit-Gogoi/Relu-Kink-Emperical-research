@@ -1,0 +1,34 @@
+{
+  "script": "run_exp2_trajectory.py",
+  "mode": "reproduction",
+  "git_commit": null,
+  "torch_version": "2.15.0+cpu",
+  "python_version": "3.14.3",
+  "device": "cpu",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "k": 200,
+  "batch_size": 128,
+  "lr": 0.01,
+  "precisions": [
+    "float64",
+    "float32",
+    "float16"
+  ],
+  "topology": "A",
+  "norm": "NoNorm",
+  "batch_index_file": "results/reproduction_batch_indices.npy",
+  "csv": "results/reproduction_traj.csv",
+  "summary_csv": "results/reproduction_summary.csv",
+  "max_twin_l1": 0.0
+}
