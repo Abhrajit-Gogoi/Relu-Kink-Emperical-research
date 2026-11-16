@@ -14,12 +14,17 @@
     "bfloat16"
   ],
   "norms": [
+    "NoNorm",
+    "LayerNorm",
     "RMSNorm"
   ],
   "activations": [
-    "relu_1.0"
+    "relu_0.0",
+    "relu_0.5",
+    "relu_1.0",
+    "gelu"
   ],
-  "epochs": 20,
+  "epochs": 10,
   "seeds": [
     1,
     2,
@@ -29,6 +34,6 @@
   ],
   "batch_size": 128,
   "lr": 0.01,
-  "batch_index_file": "results\\mnist_batch_indices.npy",
+  "batch_index_file": "results/mnist_batch_indices.npy",
   "csv": "results/exp3_training_mnist.csv"
 }

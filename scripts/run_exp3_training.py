@@ -5,7 +5,7 @@ Matrix:
 - Norms: LayerNorm, RMSNorm (plus NoNorm on MLP)
 - Precisions: FP32, BF16
 - Activations: ProxyReLU(s=0), ProxyReLU(s=0.5), ProxyReLU(s=1), nn.GELU()
-- 5 paired seeds, 20 epochs, SGD lr=0.01, batch size 128
+- 5 paired seeds, 10 epochs, SGD lr=0.01, batch size 128
 - Datasets: MNIST (required), Fashion-MNIST (after MNIST complete)
 """
 
@@ -46,7 +46,7 @@ from src.models import (  # noqa: E402
 RESULTS = ROOT / "results"
 BATCH_SIZE = 128
 LR = 0.01
-EPOCHS = 20
+EPOCHS = 10
 N_SEEDS = 5
 
 # Architecture configs
