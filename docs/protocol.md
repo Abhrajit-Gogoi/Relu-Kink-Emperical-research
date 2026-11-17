@@ -106,7 +106,7 @@ stored as \(K+1\) when the copies never split. Each step logs minimum absolute p
 - **Residual MLP.** Topology C, three blocks, width 256, input 784, output 10. Norms: none, LayerNorm, RMSNorm.
 - The micro-transformer arm has been dropped; only the residual MLP (topology C) is run.
 - Precisions: FP32 and BF16.
-- Activations: ReLU at \(s \in \{0, 0.5, 1\}\), and `nn.GELU()` (GELU not yet implemented).
+- Activations: ReLU at \(s \in \{0, 0.5, 1\}\), and `nn.GELU()` (GELU implemented).
 - Five paired seeds, 20 epochs.
 
 MNIST is required. Fashion-MNIST repeats the same matrix after MNIST is complete. If finishing Fashion-MNIST would cut MNIST short, MNIST is the reported dataset and Fashion-MNIST is marked incomplete.
