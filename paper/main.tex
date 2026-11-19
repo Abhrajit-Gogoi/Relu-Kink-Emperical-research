@@ -3,6 +3,7 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
+\usepackage{natbib}
 \usepackage{hyperref}
 
 \title{Finite-Precision Proxy Derivatives at the ReLU Kink:\\
@@ -116,6 +117,9 @@ Representative final test accuracy (mean over seeds, NoNorm/LayerNorm/RMSNorm, F
 \label{tab:exp1}
 \end{table}
 
+\section{Results}\label{sec:results}
+\textbf{H1 (supported):} Exact-zero rate and bifurcation volume rise as the mantissa narrows. BF16 NoNorm bias-on $\hat p_0=2.99\times10^{-5}$ exceeds FP32 ($2.54\times10^{-9}$) and FP16 ($3.80\times10^{-6}$) despite sharing FP32's exponent range; BF16 BatchNorm1d reaches $\hat p_0=1.33\times10^{-3}$ with $\hat V=1.0$.
+
 \begin{table}[htbp]
 \centering
 \input{tables/table3}
@@ -129,9 +133,6 @@ Representative final test accuracy (mean over seeds, NoNorm/LayerNorm/RMSNorm, F
 \caption{Experiment 3 training stability: test accuracy, loss total variation, and paired Wilcoxon $p$ versus $s{=}0$, across norms, precisions, and activations.}
 \label{tab:exp3}
 \end{table}
-
-\section{Results}\label{sec:results}
-\textbf{H1 (supported):} Exact-zero rate and bifurcation volume rise as the mantissa narrows. BF16 NoNorm bias-on $\hat p_0=2.99\times10^{-5}$ exceeds FP32 ($2.54\times10^{-9}$) and FP16 ($3.80\times10^{-6}$) despite sharing FP32's exponent range; BF16 BatchNorm1d reaches $\hat p_0=1.33\times10^{-3}$ with $\hat V=1.0$.
 
 \textbf{H2 (supported):} LayerNorm concentrates pre-activation mass near zero (BF16 LayerNorm bias-on $\hat p_0=1.12\times10^{-4}$, $\hat B=0.9999$) relative to RMSNorm ($\hat p_0=2.99\times10^{-5}$, $\hat B=0.9436$). Experiment 3 test accuracy is comparable across norms (~97\% FP32), consistent with both norms buffering accuracy versus NoNorm.
 
@@ -172,7 +173,7 @@ Representative final test accuracy (mean over seeds, NoNorm/LayerNorm/RMSNorm, F
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.95\textwidth]{../figures/figure5.pdf}
-\caption{Loss total variation (TV$_\\ell$) and test accuracy, ReLU slopes versus GELU (averaged over norms and seeds). GELU shows no significant advantage over ReLU at $s{=}0.5$. (H4)}
+\caption{Loss total variation (TV$_{\ell}$) and test accuracy, ReLU slopes versus GELU (averaged over norms and seeds). GELU shows no significant advantage over ReLU at $s{=}0.5$. (H4)}
 \label{fig:five}
 \end{figure}
 

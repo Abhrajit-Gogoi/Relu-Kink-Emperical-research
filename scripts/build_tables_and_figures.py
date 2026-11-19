@@ -247,7 +247,7 @@ def build_table4(rows: list[dict]) -> str:
     body_lines = [
         "\\begin{tabular}{l l l c c c}",
         "\\toprule",
-        "norm & precision & activation & test acc (%) & TV_l & Wilcoxon $p$ \\\\",
+        "norm & precision & activation & test acc (\%) & TV\\_l & Wilcoxon $p$ \\\\",
         "\\midrule",
     ]
     for key in sorted(cells):
