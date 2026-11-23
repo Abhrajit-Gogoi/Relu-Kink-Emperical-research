@@ -1,7 +1,7 @@
 Finite-Precision Proxy Derivatives at the ReLU Kink:
 BFloat16 Arithmetic, LayerNorm versus RMSNorm, and Residual
 Topology
-Atharva Chavan, Abhrajit Gogoi
+Abhrajit Gogoi, Atharva Chavan
 Independent Research Manuscript
 November 2026
 
