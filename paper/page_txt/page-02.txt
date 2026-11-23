@@ -1,0 +1,44 @@
+H1
+
+Exact-zero collisions and bifurcation volume rise as the mantissa narrows; BF16
+(p = 7, e = 8) exceeds FP32 and FP16 despite sharing FP32’s exponent range.
+H2 LayerNorm raises the exact-zero rate relative to RMSNorm (mean subtraction
+centers at zero); both norms buffer test accuracy versus unnormalized networks.
+H3 Twin SGD runs stay bitwise-equal until the first exact zero; an inside-branch PreNorm branch whose skip avoids the kink diverges more slowly than an on-highway
+residual ReLU.
+H4 GELU (GELU′ (0) = 0.5) yields lower step-to-step loss variation than ReLU at
+matching slope s = 0.5.
+Table 1: The four hypotheses under test.
+the mathematical foundations: IEEE-754 bit layouts, the Clarke subdifferential, LayerNorm versus
+RMSNorm Jacobians, residual topologies, and GELU′ (0) = 0.5. Section 4 describes the experimental
+methodology, measurement rules, estimators, and determinism controls. Section 5 presents results
+across four experiments (Experiments 0–3) plus a baseline reproduction check. Section 6 discusses
+mechanisms, Section 7 states limitations, Section 8 concludes, and Section 9 gives a reproducibility
+statement.
+
+2
+
+Related Work
+
+Nonsmooth automatic differentiation. Bolte and Pauwels [2021] introduce conservative setvalued fields and path-differentiable functions as the mathematical framework for AD across nondifferentiable compositions. Lee et al. [2020] formalize piecewise-analytic functions and distinguish
+intensional from extensional derivatives. Lee et al. [2023] analyze AD correctness over discrete floatingpoint grids, showing that bias-free normalization and attention layers can fail well-structuredness
+conditions. Park et al. [2024] prove that AD returns a valid Clarke subdifferential when minibatch
+size is one with distinct biases (Theorem 1), and extend this to arbitrary minibatch sizes with
+consistent convex-combination weights (Theorem 4).
+Finite-precision AD pitfalls. Bertoin et al. [2021] first demonstrated numerically that the
+proxy slope ReLU′ (0) influences MNIST backpropagation, reporting a ∼40% FP32 bifurcation weight
+proportion; their erratum corrects a chain-rule implementation bug while stating the proportions are
+unchanged. Hückelheim et al. [2023] survey AD pitfalls, framing low-precision ReLU differentiation
+as the intersection of control-flow branch, chaotic dynamics, and discrete-representation pitfalls.
+Yang et al. [2023] present ∇Fuzz, a differential tester that exposes AD discrepancies triggered by
+non-differentiable kinks and finite-precision rounding. Martorella et al. [2023] independently confirm
+the MNIST MLP trajectory bifurcation and Monte Carlo volume benchmarks.
+Normalization and activations in low precision. Ba et al. [2016] introduce LayerNorm;
+Zhang and Sennrich [2019] introduce RMSNorm, which performs strictly positive scaling without
+mean subtraction. Hendrycks and Gimpel [2016] introduce GELU, whose derivative at zero is 0.5
+continuously. Salmani et al. [2024] show that explicit control of normalization reductions matters in
+low-precision Transformers, motivating our explicit norm modules.
+
+2
+
+

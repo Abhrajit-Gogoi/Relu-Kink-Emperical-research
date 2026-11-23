@@ -1,0 +1,173 @@
+Statistical power. With R = 5 paired seeds, the minimum mathematically possible two-sided
+Wilcoxon signed-rank p-value is 2 · (1/2)5 = 0.0625, attained when one activation outperforms the
+other on all 5/5 seeds. Thus p = 0.0625 indicates directional consistency across all seeds but is
+underpowered to reject H0 at α = 0.05.
+
+5
+
+Experimental Results
+
+5.1
+
+Experiment 0 — operator audit
+
+ProxyReLU was probed on x = [−2, −10−7 , −0.0, +0.0, +10−7 , +2] in FP64, FP32, FP16, BF16 at
+s ∈ {0, 0.25, 0.5, 0.75, 1}. The backward gradient equals [0, 0, s, s, 1, 1] in all four dtypes for both
+signed zeros (−0.0 and +0.0). The probe passes for every listed slope in every dtype. On 106
+nonzero draws from U[−5, 5] in FP32 and BF16, the Bertoin emulation fs matched ProxyReLU with
+forward error 0 and gradient-mismatch fraction 0 (the extra term cancels exactly on this range). A
+one-hidden-layer s = 0 twin ran 20 identical SGD steps at L1 distance 0. All tests pass. See Table 2.
+dtype
+
+s
+
+probe pass
+
+max |∆f |
+
+frac nonzero grad mismatch
+
+bfloat16
+bfloat16
+bfloat16
+bfloat16
+bfloat16
+bfloat16
+bfloat16
+float16
+float16
+float16
+float16
+float16
+float32
+float32
+float32
+float32
+float32
+float32
+float32
+float64
+float64
+float64
+float64
+float64
+
+0.0
+0.1
+0.25
+0.3
+0.5
+0.75
+1.0
+0.0
+0.25
+0.5
+0.75
+1.0
+0.0
+0.1
+0.25
+0.3
+0.5
+0.75
+1.0
+0.0
+0.25
+0.5
+0.75
+1.0
+
+yes
+—
+yes
+—
+yes
+yes
+yes
+yes
+yes
+yes
+yes
+yes
+yes
+—
+yes
+—
+yes
+yes
+yes
+yes
+yes
+yes
+yes
+yes
+
+–
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+–
+–
+–
+–
+–
+–
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+–
+–
+–
+–
+–
+
+–
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+–
+–
+–
+–
+–
+–
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+0.00e+00
+–
+–
+–
+–
+–
+
+Note: Dashes (—) in the probe pass column for s ∈ {0.1, 0.3} indicate slopes evaluated via the Bertoin algebraicemulation audit rather than the six-point unit probe; dashes in the emulation columns indicate configurations where
+only the unit probe was run.
+
+Table 2: Experiment 0 operator audit: probe pass, forward error, and emulation mismatch for
+ProxyReLU across dtypes and slopes.
+
+5.2
+
+Experiment 1 — static Monte Carlo bifurcation volume
+
+The Stage-2 MLP (784 × 256 × 256 × 256 × 10, P = 335,114 with biases) was crossed with precision
+∈ {FP64, FP32, FP16, BF16}, norm ∈ {NoNorm, BatchNorm1d, LayerNorm, RMSNorm}, bias
+on/off, and slope s ∈ {0.5, 1.0} differenced against s = 0, with M = 200 initializations and
+Q = 100 minibatches of 128—32 cells × 2 slopes = 64 rows. Every cell ran with no failures and no
+upcasting. See Table 3.
+Key cells (bias on, s = 1 vs s = 0):
+5
+
+

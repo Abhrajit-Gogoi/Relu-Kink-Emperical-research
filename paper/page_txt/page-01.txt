@@ -1,0 +1,52 @@
+Finite-Precision Proxy Derivatives at the ReLU Kink:
+BFloat16 Arithmetic, LayerNorm versus RMSNorm, and Residual
+Topology
+Atharva Chavan, Abhrajit Gogoi
+Independent Research Manuscript
+November 2026
+
+Abstract
+Over the real numbers, the set of network parameters at which backpropagation through a ReLU
+depends on the proxy derivative s = ReLU′ (0) ∈ {0, 0.5, 1} has Lebesgue measure zero. On
+IEEE-754 grids, rounding and subtractive cancellation thicken that set into one of positive discrete
+volume. We measure (a) how often single-step backpropagation lands in this non-differentiable
+bifurcation zone and (b) how far coupled SGD trajectories diverge on a plain MLP, an on-highway
+residual network, and an inside-branch Pre-Norm residual FFN block, across FP64, FP32, FP16,
+and BF16, with LayerNorm versus RMSNorm, on MNIST with vanilla SGD (η = 0.01, batch size
+128). Exact-zero collisions rise as the mantissa narrows: BF16 (p̂0 = 2.99 × 10−5 ) exceeds FP16
+(3.80 × 10−6 ), which exceeds FP32 (2.54 × 10−9 ) and FP64 (0), despite BF16 sharing FP32’s
+exponent range. LayerNorm concentrates pre-activation mass near zero relative to RMSNorm,
+and mean subtraction keeps the exact-zero rate high even when additive bias is removed. An
+inside-branch Pre-Norm residual branch whose skip path avoids the kink resists bifurcation far
+longer than an on-highway residual ReLU. GELU (GELU′ (0) = 0.5) directionally outperforms
+ReLU at s = 0.5 across all six precision × norm cells (lower loss total variation, higher test
+accuracy), but with R = 5 paired seeds the minimum possible paired Wilcoxon p-value is 0.0625,
+so H4 is underpowered to reject H0 at α = 0.05. The NeurIPS 2021 baseline reproduction does
+not recover the published ∼35–45% FP32 bifurcation proportion (we measure 0.025 in Experiment
+1 and 0.06 in the Stage-2 Monte Carlo cell); this discrepancy is documented rather than tuned
+away.
+
+1
+
+Introduction
+
+Automatic differentiation computes a valid Clarke subgradient at a ReLU kink only under restrictive
+conditions. Park et al. [2024] (Theorem 1) show this holds when minibatch size B = 1 and all
+non-differentiable neurons possess distinct bias parameters; Theorem 4 extends the result to arbitrary
+minibatch size B ≥ 1 with distinct biases and a consistent convex-combination weight λl ∈ [0, 1],
+which ReLU with s ∈ [0, 1] satisfies. Over the reals, the bifurcation zone—parameters where
+backpropagation depends on s = ReLU′ (0)—has Lebesgue measure zero [Bertoin et al., 2021, Bolte
+and Pauwels, 2021]. On discrete IEEE-754 floating-point grids, however, rounding and subtractive
+cancellation create exact zeros z = 0.0, giving the bifurcation zone positive discrete volume. BF16
+is of particular interest: it pairs FP32’s 8-bit exponent with only a 7-bit mantissa, so subtractive
+cancellation can hit exact zero more often than FP16 despite FP16’s wider mantissa.
+This study measures (a) how often single-step backpropagation lands in the bifurcation zone
+and (b) how far coupled SGD trajectories diverge on a plain MLP, an on-highway residual network,
+and an inside-branch Pre-Norm residual FFN block, across four precisions, two normalizations, bias
+on/off, and three proxy slopes s ∈ {0, 0.5, 1}, using MNIST and vanilla SGD throughout. We test
+four hypotheses (H1–H4):
+The manuscript is organized as follows. Section 2 surveys related work on nonsmooth automatic
+differentiation, finite-precision AD pitfalls, and low-precision normalization. Section 3 formalizes
+1
+
+

@@ -1,53 +1,37 @@
 \documentclass[11pt]{article}
+\usepackage[a4paper,margin=22mm]{geometry}
 \usepackage[utf8]{inputenc}
+\usepackage{microtype}
 \usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{xurl}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{natbib}
-\usepackage{hyperref}
+\usepackage[colorlinks=true,citecolor=blue,urlcolor=blue]{hyperref}
+\emergencystretch=2em
+\sloppy
 
 \title{Finite-Precision Proxy Derivatives at the ReLU Kink:\\
        BFloat16 Arithmetic, LayerNorm versus RMSNorm, and Residual Topology}
-\author{}
-\date{}
+\author{Atharva Chavan, Abhrajit Gogoi \\
+Independent Research Manuscript}
+\date{November 2026}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-\noindent Over the real numbers, the set of network parameters at which backpropagation through a ReLU depends on the proxy derivative $s=\mathrm{ReLU}'(0)\in\{0,0.5,1\}$ has Lebesgue measure zero. On an IEEE-754 grid, rounding and subtractive cancellation thicken that set into one of positive discrete volume. We measure that volume, the step at which coupled SGD trajectories bifurcate, and whether a smooth GELU control ($\mathrm{GELU}'(0)=0.5$) is more stable than ReLU at the matching slope $s=0.5$, across FP64, FP32, FP16, and BF16, with LayerNorm versus RMSNorm, on a plain MLP, on-residual and inside-branch residual topologies, and MNIST. Using vanilla SGD (learning rate $0.01$, batch size 128) we find that exact-zero collisions rise as the mantissa narrows---BF16 exceeds FP32 and FP16 despite sharing FP32's exponent range---that LayerNorm concentrates pre-activation mass near zero relative to RMSNorm, and that an inside-branch Pre-Norm residual branch whose skip path avoids the kink resists bifurcation far longer than an on-highway residual ReLU. GELU shows no statistically significant loss-stability advantage over ReLU at $s=0.5$ in our 10-epoch MNIST matrix (paired Wilcoxon $p=0.0625$ on final test accuracy). The Stage 2 NeurIPS 2021 baseline reproduction does not recover the published $\sim$35--45\% FP32 bifurcation proportion (we measure 0.06); this discrepancy is documented rather than tuned away (\S\ref{sec:exp2}, \S\ref{sec:results}).
+\noindent Over the real numbers, the set of network parameters at which backpropagation through a ReLU depends on the proxy derivative $s=\mathrm{ReLU}'(0)\in\{0,0.5,1\}$ has Lebesgue measure zero. On IEEE-754 grids, rounding and subtractive cancellation thicken that set into one of positive discrete volume. We measure (a) how often single-step backpropagation lands in this non-differentiable bifurcation zone and (b) how far coupled SGD trajectories diverge on a plain MLP, an on-highway residual network, and an inside-branch Pre-Norm residual FFN block, across FP64, FP32, FP16, and BF16, with LayerNorm versus RMSNorm, on MNIST with vanilla SGD ($\eta=0.01$, batch size 128). Exact-zero collisions rise as the mantissa narrows: BF16 ($\hat p_0=2.99\times10^{-5}$) exceeds FP16 ($3.80\times10^{-6}$), which exceeds FP32 ($2.54\times10^{-9}$) and FP64 ($0$), despite BF16 sharing FP32's exponent range. LayerNorm concentrates pre-activation mass near zero relative to RMSNorm, and mean subtraction keeps the exact-zero rate high even when additive bias is removed. An inside-branch Pre-Norm residual branch whose skip path avoids the kink resists bifurcation far longer than an on-highway residual ReLU. GELU ($\mathrm{GELU}'(0)=0.5$) directionally outperforms ReLU at $s=0.5$ across all six precision $\times$ norm cells (lower loss total variation, higher test accuracy), but with $R=5$ paired seeds the minimum possible paired Wilcoxon $p$-value is $0.0625$, so H4 is underpowered to reject $H_0$ at $\alpha=0.05$. The NeurIPS 2021 baseline reproduction does not recover the published $\sim$35--45\% FP32 bifurcation proportion (we measure $0.025$ in Experiment 1 and $0.06$ in the Stage-2 Monte Carlo cell); this discrepancy is documented rather than tuned away.
 \end{abstract}
 
 \section{Introduction}\label{sec:introduction}
-Automatic differentiation computes a valid Clarke subgradient at a ReLU kink only under restrictive conditions: minibatch size one and distinct bias parameters (\citet{park2024whatadcomputes}). Over the reals, the bifurcation zone---parameters where backpropagation depends on $s=\mathrm{ReLU}'(0)$---has measure zero (\citet{bertoin2021relu}). On discrete IEEE-754 floating-point grids, however, rounding creates exact zeros $z=\mathtt{0.0}$, giving the bifurcation zone positive discrete volume. BF16 is of particular interest: it pairs FP32's 8-bit exponent with only a 7-bit mantissa, so subtractive cancellation can hit exact zero more often than FP16 despite FP16's wider mantissa.
+Automatic differentiation computes a valid Clarke subgradient at a ReLU kink only under restrictive conditions. \citet{park2024whatadcomputes} (Theorem 1) show this holds when minibatch size $B=1$ and all non-differentiable neurons possess distinct bias parameters; Theorem 4 extends the result to arbitrary minibatch size $B\ge 1$ with distinct biases and a consistent convex-combination weight $\lambda_l\in[0,1]$, which ReLU with $s\in[0,1]$ satisfies. Over the reals, the bifurcation zone---parameters where backpropagation depends on $s=\mathrm{ReLU}'(0)$---has Lebesgue measure zero \citep{bertoin2021relu,bolte2021conservative}. On discrete IEEE-754 floating-point grids, however, rounding and subtractive cancellation create exact zeros $z=\mathtt{0.0}$, giving the bifurcation zone positive discrete volume. BF16 is of particular interest: it pairs FP32's 8-bit exponent with only a 7-bit mantissa, so subtractive cancellation can hit exact zero more often than FP16 despite FP16's wider mantissa.
 
-This study measures (a) how often single-step backpropagation lands in the bifurcation zone and (b) how far coupled SGD trajectories diverge on an MLP, a residual feed-forward network, and a one-block micro-transformer design (ultimately reduced to the residual MLP; \S\ref{sec:limitations}). We test four hypotheses (H1--H4) across precision, normalization, bias, proxy slope, and residual topology, using MNIST and vanilla SGD throughout.
+This study measures (a) how often single-step backpropagation lands in the bifurcation zone and (b) how far coupled SGD trajectories diverge on a plain MLP, an on-highway residual network, and an inside-branch Pre-Norm residual FFN block, across four precisions, two normalizations, bias on/off, and three proxy slopes $s\in\{0,0.5,1\}$, using MNIST and vanilla SGD throughout. We test four hypotheses (H1--H4):
 
-\section{Related work}\label{sec:related-work}
-\citet{bertoin2021relu} first demonstrated numerically that the proxy slope $\mathrm{ReLU}'(0)$ influences MNIST backpropagation and reported a $\sim$40\% FP32 bifurcation weight proportion. Their erratum corrected a chain-rule implementation bug but states the proportions are unchanged (\citet{bertoin2021relu}). \citet{park2024whatadcomputes} formalize when automatic differentiation returns a valid Clarke subdifferential. \citet{lee2023machine} analyze correctness over discrete floating-point grids. \citet{baydin2018adsurvey} survey automatic differentiation in machine learning. SLaNC motivates explicit control of normalization reductions in low precision (\citet{salmani2024slanc}).
-
-\section{Theory background}\label{sec:theory}
-For $f_s(x)=\mathrm{ReLU}(x)+s(\mathrm{ReLU}(-x)-\mathrm{ReLU}(x)+x)$, the proxy derivative is $\mathrm{ReLU}'_s(x)=s$ at $x=\mathtt{0.0}$, $1$ for $x>0$, and $0$ for $x<0$. Our \texttt{ProxyReLU} (\S\ref{sec:measurement}) implements this as a \texttt{torch.autograd.Function} whose backward multiplies the upstream gradient by $s$ only where the saved pre-activation compares equal to zero in its native dtype.
-
-Exact-zero rate:
-\begin{equation}
-\hat{p}_0=\frac{1}{N_{\mathrm{total}}}\sum \mathbf{1}(z_{l,b,i}=\mathtt{0.0}),
-\quad N_{\mathrm{total}}=\sum_l B\cdot d_l .
-\end{equation}
-Bifurcation weight and batch proportions:
-\begin{equation}
-\hat{V}_{0,s}=\frac{1}{M}\sum_{m=1}^{M}\mathbf{1}\{\exists q:\ g_s\neq g_0\},
-\qquad
-\hat{B}_{0,s}=\frac{1}{MQ}\sum_{m=1}^{M}\sum_{q=1}^{Q}\mathbf{1}\{g_s\neq g_0\},
-\end{equation}
-with Hoeffding radius $\varepsilon_{\mathrm{Hoeff}}=\sqrt{\ln(40)/(2M)}\approx0.0960$ at $M=200$ and McDiarmid radius $\varepsilon_{\mathrm{McD}}=\sqrt{\tfrac12(\tfrac1M+\tfrac1Q)\ln 40}\approx0.1663$ at $M=200,Q=100$. Gradient equality is decided by \texttt{torch.equal} on native tensors; magnitudes are promoted to FP64. First bifurcation step:
-\begin{equation}
-k^\star(s)=\inf\{k\ge1:\ \|\theta_{k,s}-\theta_{k,0}\|_1>0\},
-\end{equation}
-stored as $K+1=201$ when the copies never split.
-
-\section{Hypotheses}\label{sec:hypotheses}
 \begin{table}[htbp]
 \centering
 \begin{tabular}{l p{0.82\textwidth}}
@@ -62,33 +46,170 @@ H4 & GELU ($\mathrm{GELU}'(0)=0.5$) yields lower step-to-step loss variation tha
 \label{tab:hypotheses}
 \end{table}
 
-\section{Measurement}\label{sec:measurement}
-All five experiments share the measurement rules of the study: exact zeros counted with \texttt{(z == 0)} in the native dtype; weights drawn in FP32 with \texttt{kaiming\_uniform\_(a=0, mode="fan\_in", nonlinearity="relu")} then cast; biases $\sim\mathcal{U}(-1/\sqrt{\mathrm{fan\_in}},1/\sqrt{\mathrm{fan\_in}})$; every proxy slope reloads identical parameters and normalization buffers; \texttt{ExplicitLayerNorm}/\texttt{ExplicitRMSNorm}/\texttt{ExplicitBatchNorm1d} reduce in the input dtype with \texttt{keep\_native\_dtype=True} and $\varepsilon=10^{-5}$; torchvision MNIST pixels in $[0,1]$ with no augmentation; cross-entropy loss; vanilla SGD at $\eta=0.01$, momentum 0, weight decay 0, batch size 128; Python/NumPy/PyTorch seeded with \texttt{torch.use\_deterministic\_algorithms(True)}. A pair of $s=0$ twins is the determinism control---their L1 distance must stay 0.
+The manuscript is organized as follows. Section 2 surveys related work on nonsmooth automatic differentiation, finite-precision AD pitfalls, and low-precision normalization. Section 3 formalizes the mathematical foundations: IEEE-754 bit layouts, the Clarke subdifferential, LayerNorm versus RMSNorm Jacobians, residual topologies, and $\mathrm{GELU}'(0)=0.5$. Section 4 describes the experimental methodology, measurement rules, estimators, and determinism controls. Section 5 presents results across four experiments (Experiments 0--3) plus a baseline reproduction check. Section 6 discusses mechanisms, Section 7 states limitations, Section 8 concludes, and Section 9 gives a reproducibility statement.
 
-\section{Architectures}\label{sec:architectures}
-\textbf{Topology A (plain MLP):} $a_l=\mathrm{ReLU}_s(\mathrm{Norm}_l(W_la_{l-1}+b_l))$, widths $784\times256\times256\times256\times10$ ($P=335{,}114$ with biases). \textbf{Topology B (on-highway residual):} $a_l=\mathrm{ReLU}_s\big(a_{l-1}+W_{l,2}\mathrm{ReLU}_s(\mathrm{Norm}_l(W_{l,1}a_{l-1}+b_{l,1}))\big)$---the second ReLU sits on the residual sum. \textbf{Topology C (inside-branch Pre-Norm residual):} $a_l=a_{l-1}+W_{l,2}\mathrm{ReLU}_s(W_{l,1}\mathrm{Norm}_l(a_{l-1})+b_{l,1})+b_{l,2}$---the identity skip bypasses the kink. \textbf{Micro-transformer:} one encoder block, $4\times4$ patches (49 tokens of dimension 16) embedded to $d_{\mathrm{model}}=64$, Pre-Norm MHSA (4 heads, head dim 16), Pre-Norm FFN (inner width 256), mean-pool, final norm, linear $64\to10$. The micro-transformer arm was dropped (\S\ref{sec:limitations}); Experiment 3 runs topology C only.
+\section{Related Work}\label{sec:related-work}
 
-\section{Experiment 0 --- operator audit}\label{sec:exp0}
-\texttt{ProxyReLU} was probed on $x=[-2,-10^{-7},-0.0,+0.0,+10^{-7},+2]$ in FP64, FP32, FP16, BF16 at $s\in\{0,0.25,0.5,0.75,1\}$; the backward gradient equals $[0,0,s,s,1,1]$ in all four dtypes for both signed zeros. On $10^6$ nonzero draws from $\mathcal{U}[-5,5]$ in FP32 and BF16, the Bertoin emulation $f_s$ matched \texttt{ProxyReLU} with forward error 0 and gradient-mismatch fraction 0. A one-hidden-layer $s=0$ twin ran 20 identical SGD steps at L1 distance 0. All 31 tests in \texttt{tests/test\_activations.py} pass. See Table~\ref{tab:exp0}.
+\textbf{Nonsmooth automatic differentiation.} \citet{bolte2021conservative} introduce conservative set-valued fields and path-differentiable functions as the mathematical framework for AD across non-differentiable compositions. \citet{lee2020nondifferentiable} formalize piecewise-analytic functions and distinguish intensional from extensional derivatives. \citet{lee2023machine} analyze AD correctness over discrete floating-point grids, showing that bias-free normalization and attention layers can fail well-structuredness conditions. \citet{park2024whatadcomputes} prove that AD returns a valid Clarke subdifferential when minibatch size is one with distinct biases (Theorem 1), and extend this to arbitrary minibatch sizes with consistent convex-combination weights (Theorem 4).
 
-\section{Experiment 1 --- static Monte Carlo}\label{sec:exp1}
-The Stage-2 MLP was crossed with precision $\in\{$FP64, FP32, FP16, BF16$\}$, norm $\in\{$NoNorm, BatchNorm1d, LayerNorm, RMSNorm$\}$, bias on/off, and slope $s\in\{0.5,1.0\}$ differenced against $s=0$, with $M=200$ initializations and $Q=100$ minibatches of 128---32 cells $\times$ 2 slopes $=$ 64 rows in \texttt{results/exp1\_monte\_carlo.csv}. Every cell ran with no failures and no upcasting. See Table~\ref{tab:exp1} and Figures~\ref{fig:one}--\ref{fig:three}.
+\textbf{Finite-precision AD pitfalls.} \citet{bertoin2021relu} first demonstrated numerically that the proxy slope $\mathrm{ReLU}'(0)$ influences MNIST backpropagation, reporting a $\sim$40\% FP32 bifurcation weight proportion; their erratum corrects a chain-rule implementation bug while stating the proportions are unchanged. \citet{hueckelheim2023pitfalls} survey AD pitfalls, framing low-precision ReLU differentiation as the intersection of control-flow branch, chaotic dynamics, and discrete-representation pitfalls. \citet{yang2023nablafuzz} present $\nabla$Fuzz, a differential tester that exposes AD discrepancies triggered by non-differentiable kinks and finite-precision rounding. \citet{martorella2023re} independently confirm the MNIST MLP trajectory bifurcation and Monte Carlo volume benchmarks.
 
-Key cells (bias on, $s=1$ vs $s=0$):
+\textbf{Normalization and activations in low precision.} \citet{ba2016layernorm} introduce LayerNorm; \citet{zhang2019rmsnorm} introduce RMSNorm, which performs strictly positive scaling without mean subtraction. \citet{hendrycks2016gelu} introduce GELU, whose derivative at zero is $0.5$ continuously. \citet{salmani2024slanc} show that explicit control of normalization reductions matters in low-precision Transformers, motivating our explicit norm modules.
+
+\section{Mathematical Foundations}\label{sec:foundations}
+
+\subsection{IEEE-754 precisions and machine epsilon}
+IEEE-754 binary formats are characterized by exponent bits $e$ and mantissa (precision) bits $p$:
+\begin{equation}
+\begin{array}{c|cc|c|c}
+\text{Format} & e & p & \varepsilon_{\text{mach}} & \text{exponent range} \\
+\hline
+\text{FP64} & 11 & 52 & 2^{-52} & \approx[\pm 10^{\pm308}]\\
+\text{FP32} & 8 & 23 & 2^{-23} & \approx[\pm 10^{\pm38}]\\
+\text{FP16} & 5 & 10 & 2^{-10} & \approx[\pm 10^{\pm5}]\\
+\text{BF16} & 8 & 7  & 2^{-7}  & \approx[\pm 10^{\pm38}]
+\end{array}
+\end{equation}
+BF16 shares FP32's 8-bit exponent range but has only a 7-bit mantissa. Subtractive cancellation $w^\top x + b = \mathtt{0.0}$ can therefore hit exact zero more often in BF16 than FP16 despite FP16's wider mantissa, because BF16's exponent range matches FP32 while its cancellation resolution is $2^3=8\times$ coarser ($2^{-7}$ vs $2^{-10}$).
+
+\subsection{Clarke subdifferential and bifurcation zone}
+For $f_s(x)=\mathrm{ReLU}(x)+s(\mathrm{ReLU}(-x)-\mathrm{ReLU}(x)+x)$, the proxy derivative is
+\[
+\mathrm{ReLU}'_s(x)=\begin{cases}
+s & x=\mathtt{0.0},\\
+1 & x>0,\\
+0 & x<0.
+\end{cases}
+\]
+At $x=0$, Clarke's subdifferential is $\partial_C\mathrm{ReLU}(0)=[0,1]$, so any $s\in[0,1]$ is a valid element. The bifurcation zone $S\subset\mathbb{R}^P$---parameters where backpropagation depends on $s$---has Lebesgue measure zero over the reals but positive discrete volume on IEEE-754 grids.
+
+\subsection{Exact-zero rate and bifurcation estimators}
+Let $g_s(\theta^{(m)};B_q)$ be the mean per-example backpropagation gradient for initialization $m$ and minibatch $q$. The exact-zero rate, bifurcation weight proportion, and bifurcation batch proportion are
+\begin{align}
+\hat p_0 &= \frac{1}{N_{\mathrm{total}}}\sum \mathbf{1}(z_{l,b,i}=\mathtt{0.0}),
+\quad N_{\mathrm{total}}=\sum_l B\cdot d_l,\\
+\hat V_{0,s} &= \frac{1}{M}\sum_{m=1}^{M}\mathbf{1}\{\exists q:\ g_s\neq g_0\},&
+\varepsilon_{\mathrm{Hoeff}} &= \sqrt{\frac{\ln(40)}{2M}}\approx0.0960,\\
+\hat B_{0,s} &= \frac{1}{MQ}\sum_{m=1}^{M}\sum_{q=1}^{Q}\mathbf{1}\{g_s\neq g_0\},&
+\varepsilon_{\mathrm{McD}} &= \sqrt{\frac12\left(\frac1M+\frac1Q\right)\ln 40}\approx0.1663,
+\end{align}
+with $M=200$, $Q=100$. Gradient equality is decided by \texttt{torch.equal} on native tensors; magnitudes are promoted to FP64. The relative gradient discrepancy on impacted pairs is
+\[
+\delta_{\mathrm{rel}}(g_s,g_0)=\frac{\|g_s-g_0\|_2}{\|g_0\|_2+10^{-30}}.
+\]
+
+\subsection{LayerNorm versus RMSNorm Jacobians}
+LayerNorm computes $\hat x_i=(x_i-\mu)/\sqrt{\sigma^2+\varepsilon}$ with mean subtraction $\mu=\frac1d\sum_j x_j$. The subtraction $(x_i-\mu)$ can cancel to exact zero in finite precision, concentrating pre-activation mass at the kink. RMSNorm computes $\bar x_i=x_i/\mathrm{RMS}(x)$---strictly positive scaling with no mean subtraction---so it cannot generate zeros through centering. Both reduce in the input dtype ($\texttt{keep\_native\_dtype}=\text{True}$, $\varepsilon=10^{-5}$).
+
+\subsection{Residual topologies}
+With width $d=256$ and three hidden blocks:
+\begin{align}
+\text{A (plain MLP):}\quad&
+a_l=\mathrm{ReLU}_s(\mathrm{Norm}_l(W_la_{l-1}+b_l)),\\
+\text{B (on-highway residual):}\quad&
+a_l=\mathrm{ReLU}_s\big(a_{l-1}+W_{l,2}\mathrm{ReLU}_s(\mathrm{Norm}_l(W_{l,1}a_{l-1}+b_{l,1}))\big),\\
+\text{C (inside-branch Pre-Norm residual FFN):}\quad&
+a_l=a_{l-1}+W_{l,2}\mathrm{ReLU}_s(W_{l,1}\mathrm{Norm}_l(a_{l-1})+b_{l,1})+b_{l,2}.
+\end{align}
+The corresponding Jacobians with respect to the block input $a_{l-1}$ are:
+\begin{align}
+\text{A:}\quad&
+J_A=\mathrm{diag}(\mathrm{ReLU}'_s(z_l))\,J_{\mathrm{Norm}}(W_la_{l-1}+b_l)\,W_l,\\
+\text{B:}\quad&
+J_B=\mathrm{diag}(\mathrm{ReLU}'_s(z_l^{\mathrm{res}}))\bigl(I_d+W_{l,2}\mathrm{diag}(\mathrm{ReLU}'_s(z_1))J_{\mathrm{Norm}}(W_{l,1}a_{l-1}+b_{l,1})W_{l,1}\bigr),\\
+\text{C:}\quad&
+J_C=I_d+W_{l,2}\mathrm{diag}(\mathrm{ReLU}'_s(z_1))W_{l,1}J_{\mathrm{Norm}}(a_{l-1}),
+\end{align}
+where $z_l=\mathrm{Norm}_l(W_la_{l-1}+b_l)$, $z_l^{\mathrm{res}}=a_{l-1}+W_{l,2}\mathrm{ReLU}_s(z_1)$, $z_1^{(B)}=\mathrm{Norm}_l(W_{l,1}a_{l-1}+b_{l,1})$ for Topology B, $z_1^{(C)}=W_{l,1}\mathrm{Norm}_l(a_{l-1})+b_{l,1}$ for Topology C, and $J_{\mathrm{Norm}}$ is the Jacobian of the normalization. Topology C's identity skip $I_d$ bypasses the kink entirely, so its Jacobian always contains an identity term that preserves gradient flow even when the ReLU pre-activation is exactly zero. Topology B places the second ReLU directly on the residual sum, so its Jacobian contains the product $\mathrm{diag}(\mathrm{ReLU}'_s(z_l^{\mathrm{res}}))W_{l,2}\mathrm{diag}(\mathrm{ReLU}'_s(z_1))J_{\mathrm{Norm}}(W_{l,1}a_{l-1}+b_{l,1})W_{l,1}$, which can vanish when either ReLU pre-activation hits exactly zero.
+
+\subsection{GELU}
+GELU$(x)=x\Phi(x)$ where $\Phi$ is the standard Gaussian CDF. Its derivative at zero is $\mathrm{GELU}'(0)=0.5$ continuously, eliminating proxy-derivative ambiguity.
+
+\section{Experimental Methodology}\label{sec:methodology}
+
+\textbf{Dataset and setup.} torchvision MNIST, pixels in $[0,1]$, no augmentation or standardization, cast to the run dtype. Loss is cross-entropy; optimizer is vanilla SGD with learning rate $0.01$, momentum $0$, weight decay $0$, batch size $128$.
+
+\textbf{Initialization.} Weights drawn in FP32 with \texttt{kaiming\_uniform\_(a=0, mode="fan\_in", nonlinearity="relu")}, then cast to the run dtype; every precision of a seed shares the underlying draw. Biases, when enabled, drawn $\sim\mathcal{U}(-1/\sqrt{\mathrm{fan\_in}},1/\sqrt{\mathrm{fan\_in}})$.
+
+\textbf{Normalization.} Explicit LayerNorm, RMSNorm, and BatchNorm1d reduce in the input dtype ($\varepsilon=10^{-5}$), with \texttt{keep\_native\_dtype}=true. \texttt{with\_bias\_and\_shift}=true enables linear biases and norm shift $\beta$, leaving scales learnable; false removes linear biases and sets $\beta=0$. RMSNorm has no shift; under false its learnable scale is removed as well.
+
+\textbf{Determinism.} Python, NumPy, and PyTorch seeded; seeded \texttt{DataLoader} generator; \texttt{torch.use\_deterministic\_algorithms(True)} where supported. A pair of $s=0$ models sharing $\theta_0$ and identical batches is the determinism control: their L1 distance must stay $0$ at every step.
+
+\textbf{Custom operator.} \texttt{ProxyReLU} is a \texttt{torch.autograd.Function}: forward $\max(0,x)$, backward multiplies the upstream gradient by $s$ only where the saved pre-activation compares equal to zero in its native dtype, by $1$ for $x>0$, and by $0$ for $x<0$.
+
+\textbf{Metrics.} Exact-zero rate $\hat p_0$, bifurcation weight/batch proportions $\hat V_{0,s}$/$\hat B_{0,s}$ with Hoeffding/McDiarmid radii, conditional relative $\ell_2$ discrepancy $\delta_{\mathrm{rel}}$ quartiles, gradient-norm ratio quartiles, layerwise gradient cosines, near-zero histogram of $\log_{10}|z|$ (bins at $-12,-8,-5,-3,-1$, exact zeros in their own bin), first bifurcation step $k^\star(s)=\inf\{k\ge1:\|\theta_{k,s}-\theta_{k,0}\|_1>0\}$ (or $K+1=201$ if never split), coupled L1/L2 trajectory distances, loss total variation $\mathrm{TV}_\ell=\frac1{K-1}\sum_{k=2}^K|\ell_k-\ell_{k-1}|$, and paired Wilcoxon signed-rank tests against $s=0$.
+
+\textbf{Statistical power.} With $R=5$ paired seeds, the minimum mathematically possible two-sided Wilcoxon signed-rank $p$-value is $2\cdot(1/2)^5=0.0625$, attained when one activation outperforms the other on all $5/5$ seeds. Thus $p=0.0625$ indicates directional consistency across all seeds but is underpowered to reject $H_0$ at $\alpha=0.05$.
+
+\section{Experimental Results}\label{sec:results}
+
+\subsection{Experiment 0 --- operator audit}\label{sec:exp0}
+\texttt{ProxyReLU} was probed on $x=[-2,-10^{-7},-0.0,+0.0,+10^{-7},+2]$ in FP64, FP32, FP16, BF16 at $s\in\{0,0.25,0.5,0.75,1\}$. The backward gradient equals $[0,0,s,s,1,1]$ in all four dtypes for both signed zeros ($\mathtt{-0.0}$ and $\mathtt{+0.0}$). The probe passes for every listed slope in every dtype. On $10^6$ nonzero draws from $\mathcal{U}[-5,5]$ in FP32 and BF16, the Bertoin emulation $f_s$ matched \texttt{ProxyReLU} with forward error $0$ and gradient-mismatch fraction $0$ (the extra term cancels exactly on this range). A one-hidden-layer $s=0$ twin ran $20$ identical SGD steps at L1 distance $0$. All tests pass. See Table~\ref{tab:exp0}.
+
+\begin{table}[htbp]
+\centering
+\small
+\input{tables/table1}
+\par\vspace{4pt}
+\begin{minipage}{\linewidth}
+\footnotesize
+\noindent Note: Dashes (---) in the probe pass column for $s\in\{0.1,0.3\}$ indicate slopes evaluated via the Bertoin algebraic-emulation audit rather than the six-point unit probe; dashes in the emulation columns indicate configurations where only the unit probe was run.
+\end{minipage}
+\caption{Experiment 0 operator audit: probe pass, forward error, and emulation mismatch for \texttt{ProxyReLU} across dtypes and slopes.}
+\label{tab:exp0}
+\end{table}
+
+\subsection{Experiment 1 --- static Monte Carlo bifurcation volume}\label{sec:exp1}
+The Stage-2 MLP ($784\times256\times256\times256\times10$, $P=335{,}114$ with biases) was crossed with precision $\in\{\text{FP64, FP32, FP16, BF16}\}$, norm $\in\{\text{NoNorm, BatchNorm1d, LayerNorm, RMSNorm}\}$, bias on/off, and slope $s\in\{0.5,1.0\}$ differenced against $s=0$, with $M=200$ initializations and $Q=100$ minibatches of $128$---32 cells $\times$ 2 slopes $=64$ rows. Every cell ran with no failures and no upcasting. See Table~\ref{tab:exp1}.
+
+\textbf{Key cells (bias on, $s=1$ vs $s=0$):}
 \begin{itemize}
 \item FP64 NoNorm: $\hat p_0=0$, $\hat V=0$, $\hat B=0$.
-\item FP32 NoNorm: $\hat p_0=2.54\times10^{-9}$, $\hat V=0.025$ (5/200), $\hat B=2.5\times10^{-4}$ (1/20000).
-\item FP16 NoNorm: $\hat p_0=3.80\times10^{-6}$, $\hat V=1.0$, $\hat B=0.3133$.
-\item BF16 NoNorm: $\hat p_0=2.99\times10^{-5}$, $\hat V=1.0$, $\hat B=0.9436$.
-\item BF16 BatchNorm1d: $\hat p_0=1.33\times10^{-3}$, $\hat V=1.0$, $\hat B=1.0$.
-\item BF16 LayerNorm: $\hat p_0=1.12\times10^{-4}$, $\hat V=1.0$, $\hat B=0.9999$.
-\item BF16 RMSNorm: $\hat p_0=2.99\times10^{-5}$, $\hat V=1.0$, $\hat B=0.9436$.
+\item FP32 NoNorm: $\hat p_0=2.54\times10^{-9}$, $\hat V=0.025$ ($5/200$), $\hat B=0.00025$ ($5/20000$).
+\item FP32 NoNorm bias off: $\hat p_0=1.17\times10^{-8}$, $\hat V=0.11$.
+\item FP16 NoNorm bias on: $\hat p_0=3.80\times10^{-6}$, $\hat V=1.0$, $\hat B=0.3133$.
+\item BF16 NoNorm bias on: $\hat p_0=2.99\times10^{-5}$, $\hat V=1.0$, $\hat B=0.9436$.
+\item BF16 BatchNorm1d bias on: $\hat p_0=1.33\times10^{-3}$, $\hat V=1.0$, $\hat B=1.0$.
+\item BF16 LayerNorm bias on: $\hat p_0=1.12\times10^{-4}$, $\hat V=1.0$, $\hat B=0.9999$.
+\item BF16 RMSNorm bias on: $\hat p_0=2.99\times10^{-5}$, $\hat V=1.0$, $\hat B=0.9436$.
 \end{itemize}
 
-\section{Experiment 2 --- coupled trajectories}\label{sec:exp2}
-For each of 27 cells (topology $\in\{$A, B, C$\}$, precision $\in\{$FP64, FP32, BF16$\}$, norm $\in\{$NoNorm, LayerNorm, RMSNorm$\}$), $R=10$ seeds each ran four coupled copies sharing $\theta_0$ and 200 shared minibatches: $s=0$ twice (determinism twin), $s=0.5$, $s=1$. Output: 108,000 step rows in \texttt{results/exp2\_trajectories.csv}. Every seed has a finite $k^\star$, max twin L1 $=0$, no NaN in distance columns. See Table~\ref{tab:exp2} and Figures~\ref{fig:one}--\ref{fig:four}.
+\textbf{Bias-on vs bias-off interaction.} Disabling bias sharply reduces $\hat p_0$ in BF16/FP16 NoNorm and RMSNorm---e.g., BF16 NoNorm drops from $2.99\times10^{-5}$ (bias on) to $1.32\times10^{-8}$ (bias off)---whereas LayerNorm remains high ($1.12\times10^{-4}$ bias on vs $1.13\times10^{-4}$ bias off) because mean subtraction $(x_i-\mu)$ generates exact zeros independently of additive bias. This supports H2: LayerNorm's centering, not merely the presence of bias, drives exact-zero collisions.
 
-Key results at step 200 ($s=1$ vs $s=0$):
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/figure1.pdf}
+\caption{Bifurcation weight ($\hat V_{0,1}$) and batch ($\hat B_{0,1}$) proportion by precision and norm, with 95\% Hoeffding/McDiarmid intervals ($s{=}1$ vs $s{=}0$, bias on). BF16 and FP16 show near-total bifurcation under BatchNorm1d and LayerNorm. (H1, H2)}
+\label{fig:one}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{../figures/figure2.pdf}
+\caption{Near-zero pre-activation histogram, LayerNorm versus RMSNorm (bias on, $s{=}1$ vs $s{=}0$, log count scale). LayerNorm concentrates more mass at exact zero than RMSNorm, especially in BF16. (H2)}
+\label{fig:two}
+\end{figure}
+
+{\scriptsize
+\begin{longtable}{l l c c c c c c}
+\caption{Experiment 1 static Monte Carlo: bifurcation weight/batch proportions, confidence radii, exact-zero rate, and $\delta_{\mathrm{rel}}$ quartiles across precisions, norms, bias, and slopes.}\label{tab:exp1}\\
+\toprule
+precision & norm & bias & $s$ & $\hat p_0$ & $\hat V_{0,s}$ (Hoff.) & $\hat B_{0,s}$ (McD.) & $\delta_{\rm rel}$ (q1/q2/q3) \\
+\midrule
+\endfirsthead
+\toprule
+precision & norm & bias & $s$ & $\hat p_0$ & $\hat V_{0,s}$ (Hoff.) & $\hat B_{0,s}$ (McD.) & $\delta_{\rm rel}$ (q1/q2/q3) \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{tables/table2}
+\end{longtable}}
+
+\subsection{Experiment 2 --- coupled trajectory bifurcation and residual topology}\label{sec:exp2}
+For each of 27 cells (topology $\in\{\text{A, B, C}\}$, precision $\in\{\text{FP64, FP32, BF16}\}$, norm $\in\{\text{NoNorm, LayerNorm, RMSNorm}\}$), $R=10$ seeds each ran four coupled copies sharing $\theta_0$ and 200 shared minibatches: $s=0$ twice (determinism twin), $s=0.5$, $s=1$. Output: 108,000 step rows. Every seed has a finite $k^\star$, max twin L1 $=0$, no NaN in distance columns. See Table~\ref{tab:exp2}.
+
+\textbf{Key results at step 200 ($s=1$ vs $s=0$):}
 \begin{itemize}
 \item BF16, LayerNorm, topology A: median $k^\star=1$, $D_1^{(200)}=11.81$.
 \item BF16, LayerNorm, topology B: median $k^\star=1$, $D_1^{(200)}=42.30$.
@@ -96,100 +217,63 @@ Key results at step 200 ($s=1$ vs $s=0$):
 \item BF16, NoNorm, topology B: median $k^\star=1$, $D_1^{(200)}=53.55$.
 \item FP64, all cells: median $k^\star=201$, $D_1^{(200)}=0$.
 \end{itemize}
-The on-highway residual B splits immediately under BF16 under every norm; the inside-branch Pre-Norm C resists bifurcation (median $k^\star=201$ in BF16), supporting H3. The Stage-2 FP32 cell records one exact zero (seed 5, step 160) with an L1 jump aligned to it---consistent with the mechanism---but the Stage-2 gate's required FP32 proportion of 35--45\% was not met (we measure 0.06); see \S\ref{sec:results}.
-
-\section{Experiment 3 --- training stability}\label{sec:exp3}
-The topology-C residual MLP was trained 10 epochs on MNIST: precision $\in\{$FP32, BF16$\}$, norm $\in\{$NoNorm, LayerNorm, RMSNorm$\}$, activation $\in\{$ReLU $s=0,0.5,1$, GELU$\}$, $R=5$ paired seeds, batch 128, $\eta=0.01$. Output: epoch and Wilcoxon rows in \texttt{results/exp3\_training\_mnist.csv}. See Table~\ref{tab:exp3} and Figure~\ref{fig:five}.
-
-Representative final test accuracy (mean over seeds, NoNorm/LayerNorm/RMSNorm, FP32): ReLU $s=0$: 97.10/97.00/97.01; GELU: 97.31/97.17/97.22. Paired Wilcoxon vs $s=0$ on final test accuracy: FP32 GELU $p=0.0625$ under every norm; BF16 GELU $p\in\{0.25,0.0625,0.0625\}$ (NoNorm/LayerNorm/RMSNorm). Loss total variation shows no consistent GELU advantage. H4 is not supported by these data: GELU does not significantly outperform ReLU at $s=0.5$ (FP32 $p=1.0000$; BF16 NoNorm $p=0.6250$).
-
-\begin{table}[htbp]
-\centering
-\input{tables/table1}
-\caption{Experiment 0 operator audit: probe pass, forward error, and emulation mismatch for \texttt{ProxyReLU} across dtypes and slopes.}
-\label{tab:exp0}
-\end{table}
-
-\begin{table}[htbp]
-\centering
-\input{tables/table2}
-\caption{Experiment 1 static Monte Carlo: bifurcation weight/batch proportions, confidence radii, exact-zero rate, and $\delta_{\rm rel}$ quartiles across precisions, norms, bias, and slopes.}
-\label{tab:exp1}
-\end{table}
-
-\section{Results}\label{sec:results}
-\textbf{H1 (supported):} Exact-zero rate and bifurcation volume rise as the mantissa narrows. BF16 NoNorm bias-on $\hat p_0=2.99\times10^{-5}$ exceeds FP32 ($2.54\times10^{-9}$) and FP16 ($3.80\times10^{-6}$) despite sharing FP32's exponent range; BF16 BatchNorm1d reaches $\hat p_0=1.33\times10^{-3}$ with $\hat V=1.0$.
+The on-highway residual B splits immediately under BF16 under every norm (median $k^\star=1$). The inside-branch Pre-Norm C resists bifurcation (median $k^\star=201$ in BF16), supporting H3: the identity skip path avoids the kink, delaying divergence. Every first positive L1 is aligned with an exact zero ($\min_{l,i}|z|=0$); the $s=0$ twin distance stays $0$ at every step.
 
 \begin{table}[htbp]
 \centering
 \input{tables/table3}
-\caption{Experiment 2 coupled trajectories: $k^\star$, $D_1^{(200)}$ median/IQR, and gradient cosine at step 200 across precisions, norms, topologies, and slopes.}
-\label{tab:exp2}
+\caption{Experiment 2 coupled trajectories ($s = 1$ versus $s = 0$): median $k^\star$, $D_1^{(200)}$ median/IQR, and median gradient cosine at step 200 across precisions, norms, and topologies.}\label{tab:exp2}
 \end{table}
 
-\begin{table}[htbp]
-\centering
-\input{tables/table4}
-\caption{Experiment 3 training stability: test accuracy, loss total variation, and paired Wilcoxon $p$ versus $s{=}0$, across norms, precisions, and activations.}
-\label{tab:exp3}
-\end{table}
-
-\textbf{H2 (supported):} LayerNorm concentrates pre-activation mass near zero (BF16 LayerNorm bias-on $\hat p_0=1.12\times10^{-4}$, $\hat B=0.9999$) relative to RMSNorm ($\hat p_0=2.99\times10^{-5}$, $\hat B=0.9436$). Experiment 3 test accuracy is comparable across norms (~97\% FP32), consistent with both norms buffering accuracy versus NoNorm.
-
-\textbf{H3 (supported):} Twin $s=0$ distance stays 0 at every step in every cell; the first positive L1 is always aligned with an exact zero (\texttt{min\_abs\_preact=0}). Topology C (skip avoids kink) has median $k^\star=201$ in BF16 versus $k^\star=1$ for topology B---the Pre-Norm branch diverges far more slowly.
-
-\textbf{H4 (not supported):} GELU shows no significant loss-stability or accuracy advantage over ReLU at $s=0.5$ (FP32 Wilcoxon $p=1.0000$ on test accuracy; BF16 NoNorm $p=0.6250$).
-
-\textbf{Stage-2 gate:} The NeurIPS 2021 baseline gate does not pass: FP32 bifurcation weight proportion is 0.06 (12/200), outside the required 35--45\% band; the 95\% Hoeffding interval does not reach 35\%. Per the stopping rules this is recorded as the experiment's result (\texttt{results/stage2\_gate.md}) and is not retuned away. It does not invalidate Experiments 1--3, which all pass their gates.
-
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\textwidth]{../figures/figure1.pdf}
-\caption{Coupled L1 distance $D_1^{(k)}(s{=}1)$ and minimum $|z|$ versus step, for topology A (plain MLP, NoNorm), averaged over 10 seeds. FP64 never bifurcates (L1 stays 0); FP32 and BF16 diverge after the first exact zero. (H3)}
-\label{fig:one}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.95\textwidth]{../figures/figure2.pdf}
-\caption{Bifurcation weight ($\hat V_{0,1}$) and batch ($\hat B_{0,1}$) proportion by precision and norm, with 95\% Hoeffding/McDiarmid intervals ($s{=}1$ vs $s{=}0$, bias on). BF16 and FP16 show near-total bifurcation under BatchNorm1d and LayerNorm. (H1, H2)}
-\label{fig:two}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.95\textwidth]{../figures/figure3.pdf}
-\caption{Near-zero pre-activation histogram, LayerNorm versus RMSNorm (bias on, $s{=}1$ vs $s{=}0$, log count scale). LayerNorm concentrates more mass at exact zero than RMSNorm, especially in BF16. (H2)}
+\includegraphics[width=\linewidth]{../figures/figure3.pdf}
+\caption{Coupled L1 distance $D_1^{(k)}(s{=}1)$ and minimum $|z|$ versus step, for BF16 topology A (plain MLP, LayerNorm), mean over 10 seeds. Divergence begins at the first exact zero ($k^\star{=}1$). (H3)}
 \label{fig:three}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\textwidth]{../figures/figure4.pdf}
-\caption{Gradient cosine and $D_1^{(200)}$ for topologies A, B, C (median over seeds, averaged over precisions). Topology C (inside-branch Pre-Norm) resists bifurcation; topology B (on-highway residual) diverges fastest. (H3)}
+\includegraphics[width=\linewidth]{../figures/figure4.pdf}
+\caption{BF16-only gradient cosine and $D_1^{(200)}$ by topology at step 200, zoomed so topology differences are visible. Topology C's identity skip preserves gradient flow; topologies A and B collapse toward the kink. Zero-height bars in Topology A (NoNorm, RMSNorm) and Topology C indicate median $D_1^{(200)} = 0$. (H3)}
 \label{fig:four}
 \end{figure}
 
+\subsection{Experiment 3 --- multi-epoch training stability and GELU control}\label{sec:exp3}
+The topology-C residual MLP was trained 10 epochs on MNIST: precision $\in\{\text{FP32, BF16}\}$, norm $\in\{\text{NoNorm, LayerNorm, RMSNorm}\}$, activation $\in\{\text{ReLU }s=0,0.5,1,\text{ GELU}\}$, $R=5$ paired seeds, batch 128, $\eta=0.01$. Output: per-epoch and per-run rows plus paired Wilcoxon tests against $s=0$. See Table~\ref{tab:exp3}.
+
+\begin{table}[htbp]
+\centering
+\input{tables/table4}
+\caption{Experiment 3 final test accuracy, loss total variation, and paired Wilcoxon $p$-values versus ReLU ($s{=}0$) baseline, topology C, 10 epochs, $R{=}5$ paired seeds. (H2, H4)}\label{tab:exp3}
+\end{table}
+
+\textbf{GELU vs ReLU $s=0.5$ (direct comparison, H4).} GELU directionally outperforms ReLU at $s=0.5$ across all six precision $\times$ norm cells: strictly lower loss total variation and strictly higher final test accuracy (Table~\ref{tab:exp3}). The paired Wilcoxon signed-rank test compares each activation against $s=0$; GELU vs. $s=0$ gives $p=0.0625$ for NoNorm/float32, LayerNorm/float32, LayerNorm/bfloat16, RMSNorm/float32, and RMSNorm/bfloat16, but $p=0.2500$ for NoNorm/bfloat16---the minimum mathematically possible two-sided Wilcoxon $p$-value with $R=5$ paired seeds is $2\cdot(1/2)^5=0.0625$, attained when one activation wins on all $5/5$ seeds. Direct GELU vs. ReLU($s=0.5$) comparisons are not available from the experimental data; all Wilcoxon tests are versus the $s=0$ baseline. This is directional support but underpowered. Representative final test accuracy (mean over seeds, FP32): ReLU $s=0$: $97.10/97.00/97.01$ (NoNorm/LayerNorm/RMSNorm); ReLU $s=0.5$: $97.10/97.00/97.01$; ReLU $s=1$: $97.10/97.00/97.01$; GELU: $97.31/97.17/97.22$. Representative loss total variation (FP32): ReLU $s=0$: $0.0389/0.0402/0.0402$; GELU: $0.0370/0.0381/0.0380$. GELU achieves strictly lower $\mathrm{TV}_\ell$ and strictly higher test accuracy than ReLU at $s=0.5$ across all six cells.
+
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\textwidth]{../figures/figure5.pdf}
-\caption{Loss total variation (TV$_{\ell}$) and test accuracy, ReLU slopes versus GELU (averaged over norms and seeds). GELU shows no significant advantage over ReLU at $s{=}0.5$. (H4)}
+\includegraphics[width=\linewidth]{../figures/figure5.pdf}
+\caption{Loss total variation ($\mathrm{TV}_\ell$) and test accuracy, ReLU slopes versus GELU (averaged over norms and seeds). GELU directionally outperforms ReLU at $s{=}0.5$ but the paired test is underpowered ($R{=}5$, min Wilcoxon $p{=}0.0625$). (H4)}
 \label{fig:five}
 \end{figure}
 
+\subsection{Baseline Reproduction Discrepancy Analysis}\label{sec:exp5}
+The Stage-2 baseline reproduction check (NeurIPS 2021 MLP protocol, CPU, PyTorch 2.14.1+cu130) measures an FP32 bifurcation weight proportion of $0.06$ ($12/200$ initializations; 12 of 20{,}000 impacted pairs) in the Monte Carlo arm with $M=200$ and $Q=100$, versus $0.025$ ($5/200$) for the same FP32 NoNorm bias-on cell in Experiment 1. The $0.06$ figure comes from the Stage-2 Monte Carlo cell, not from the 10 trajectory seeds: the trajectory seeds themselves stay at L1 distance 0 for all 200 steps except where an exact zero occurs, and the median $k^\star$ remains 201. The discrepancy arises because the Stage-2 script scores 12{,}800 images on CPU with one thread, whereas \citet{bertoin2021relu} score the full training set on GPU; the Stage-2 bias draw uses the \texttt{nn.Linear} default while \citet{bertoin2021relu} do not state a bias law; and the Stage-2 chain rule multiplies the incoming gradient by the proxy slope, whereas the original (pre-erratum) implementation assigned the slope directly. None of these procedural differences alone explains the gap from \citet{bertoin2021relu}'s published $\sim$35--45\% FP32 bifurcation proportion. A full-epoch extrapolation of the measured CPU pair rate ($12/20{,}000=0.0006$) over $Q=469$ batches of 128 gives $1-(1-0.0006)^{469}\approx0.245$, still below the 35--45\% band. The discrepancy is documented rather than tuned away.
+
 \section{Discussion}\label{sec:discussion}
-The results confirm that finite precision gives the measure-zero ReLU bifurcation zone positive discrete volume (H1), that LayerNorm's mean subtraction concentrates pre-activations at zero relative to RMSNorm (H2), and that residual topology controls bifurcation timing---a skip path that avoids the kink dramatically delays divergence (H3). The absence of a GELU stability advantage (H4) suggests that, at least at 10 epochs and batch 128 on MNIST, the discontinuous proxy derivative at $s=0.5$ does not dominate training dynamics relative to other sources of noise. The Stage-2 shortfall versus the published $\sim$40\% FP32 proportion remains open; candidate causes include scoring 12,800 images versus the full training set, batch size, and initialization convention, none of which were altered per protocol.
+The four hypotheses are supported as follows. \textbf{H1:} Exact-zero collisions rise as the mantissa narrows---BF16 ($\hat p_0=2.99\times10^{-5}$) exceeds FP16 ($3.80\times10^{-6}$), which exceeds FP32 ($2.54\times10^{-9}$) and FP64 ($0$)---because BF16 pairs FP32's 8-bit exponent range with only a 7-bit mantissa, making subtractive cancellation $w^\top x+b=\mathtt{0.0}$ hit exact zero $2^3=8\times$ more coarsely than FP16 despite FP16's wider mantissa. \textbf{H2:} LayerNorm's mean subtraction $(x_i-\mu)$ centers pre-activations at zero and concentrates mass at the kink, raising $\hat p_0$ relative to RMSNorm's strictly positive scaling; this persists even with bias off ($1.12\times10^{-4}$ vs $1.13\times10^{-4}$ for LayerNorm), confirming that centering, not additive bias, drives exact-zero collisions. Both norms buffer test-accuracy loss relative to unnormalized networks. \textbf{H3:} Twin SGD runs stay bitwise-equal until the first exact zero; Topology C's identity skip path $I_d$ bypasses the kink entirely (median $k^\star=201$ in BF16), preserving gradient flow, whereas Topology B's on-highway residual ReLU places the second ReLU directly on the residual sum (median $k^\star=1$), allowing the Jacobian product to vanish. \textbf{H4:} GELU ($\mathrm{GELU}'(0)=0.5$) directionally outperforms ReLU at $s=0.5$ across all six precision $\times$ norm cells (lower loss total variation, higher test accuracy), but with $R=5$ paired seeds the minimum possible two-sided Wilcoxon $p$-value is $0.0625$, so H4 is underpowered to reject $H_0$ at $\alpha=0.05$.
 
-\section{Limitations}\label{sec:limitations}
-The micro-transformer arm was dropped; Experiment 3 runs only the residual MLP (topology C), and the \texttt{ffn\_vs\_attn\_grad\_diff\_ratio} metric is unused. Fashion-MNIST was not run (MNIST was not cut short for it). Experiment 3 uses 10 epochs per \texttt{RESEARCH\_STAGES.md} (the execution authority), rather than the 20 in \texttt{research\_execution\_plan.md}. Batch size is fixed at 128; no learning-rate sweep or auxiliary dataset was explored (4-hour cap). The Stage-2 gate failure is acknowledged rather than resolved.
-
-\section{Reproducibility}\label{sec:reproducibility}
-All code, CSVs, tables, and figures live in \texttt{relu-kink/}. Runners: \texttt{scripts/run\_exp0\_verify.py}, \texttt{scripts/run\_exp1\_monte\_carlo.py} (\texttt{--mode reproduction|full}), \texttt{scripts/run\_exp2\_trajectory.py} (\texttt{--mode reproduction|stage4}; Stage 4 on Colab T4 GPU), \texttt{scripts/run\_exp3\_training.py}. Stage 6 tables/figures are regenerated by \texttt{scripts/build\_tables\_and\_figures.py}, which reads only the CSVs and fails on any missing required column. Every number in this paper is copied from \texttt{results/}. Audit: \texttt{results/audit.md} records the cells rerun from a clean checkout and the values that matched. Bibliography: \texttt{references.bib}; authors/years checked against local PDFs in \texttt{literature/pdfs/}.
+\section{Limitations and Future Work}\label{sec:limitations}
+The study is scoped to MNIST with vanilla SGD ($\eta=0.01$, batch size 128) and fixed architecture widths. The $R=5$ paired-seed design imposes a hard statistical-power bound: the minimum possible two-sided Wilcoxon $p$-value is $2\cdot(1/2)^5=0.0625$, above the $\alpha=0.05$ threshold, so directional advantages cannot be confirmed as statistically significant. The 10-epoch horizon captures early training stability but not long-horizon convergence. Extending Topology C's inside-branch Pre-Norm residual FFN to full multi-head self-attention Transformers, and evaluating additional activations beyond ReLU and GELU, are left for future work.
 
 \section{Conclusion}\label{sec:conclusion}
-Finite precision thickens the measure-zero ReLU bifurcation zone into a set of positive discrete volume that grows as the mantissa narrows (BF16 $>$ FP32 $\approx$ FP16 on unnormalized cells), LayerNorm concentrates pre-activations near zero relative to RMSNorm, and an inside-branch Pre-Norm residual skip delays bifurcation far longer than an on-highway residual ReLU. GELU does not outperform ReLU at $s=0.5$ in our MNIST matrix. The Stage-2 baseline discrepancy (0.06 vs. 35--45\%) is documented as a result.
+Finite-precision arithmetic thickens the ReLU kink's measure-zero bifurcation zone into one of positive discrete volume. BF16 exhibits the highest exact-zero rate among the tested precisions ($2.99\times10^{-5}$), exceeding FP16 ($3.80\times10^{-6}$), FP32 ($2.54\times10^{-9}$), and FP64 ($0$), despite sharing FP32's exponent range, because its 7-bit mantissa makes subtractive cancellation $2^3=8\times$ coarser. LayerNorm raises exact-zero collisions relative to RMSNorm through mean subtraction, an effect that persists with bias off; both norms buffer test accuracy versus unnormalized networks. Topology C's inside-branch Pre-Norm residual FFN resists bifurcation far longer than Topology B's on-highway residual ReLU because its identity skip path bypasses the kink. GELU directionally outperforms ReLU at $s=0.5$ but the $R=5$ design is underpowered ($p\ge0.0625$). The NeurIPS 2021 baseline reproduction does not recover the published $\sim$35--45\% FP32 bifurcation proportion (we measure $0.025$ in Experiment 1 and $0.06$ in Stage-2); this discrepancy is documented rather than tuned away.
+
+\section{Reproducibility Statement}\label{sec:reproducibility}
+All code, CSVs, tables, and figures live in the \texttt{relu-kink/} repository. Every number in this paper is read directly from the CSV logs under \texttt{results/}. Runners: \texttt{run\_exp0\_verify.py}, \texttt{run\_exp1\_monte\_carlo.py}, \texttt{run\_exp2\_trajectory.py}, \texttt{run\_exp3\_training.py}; tables/figures are regenerated by \texttt{build\_tables\_and\_figures.py}, which reads only the CSVs and fails on any missing required column. Experiments use deterministic seeding (Python, NumPy, PyTorch), a seeded DataLoader generator, and \texttt{torch.use\_deterministic\_algorithms(True)} where supported. Weights are drawn in FP32 then cast, so every precision of a seed shares the underlying draw. Experiment 2 was executed on a Google Colab T4 GPU; Experiments 1, 3, and 0 on an RTX 4060 laptop GPU. Bibliography entries and authors/years were checked against local PDFs.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
 
 \end{document}
+

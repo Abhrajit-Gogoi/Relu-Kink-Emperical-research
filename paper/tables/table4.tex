@@ -1,30 +1,30 @@
 \begin{tabular}{l l l c c c}
 \toprule
-norm & precision & activation & test acc (\%) & TV\_l & Wilcoxon $p$ \\
+norm & precision & activation & test acc (\%) & $\mathrm{TV}_\ell$ & Wilcoxon $p$ \\
 \midrule
-LayerNorm & bfloat16 & gelu & 96.20 & 0.037898 & 0.0625 \\
-LayerNorm & bfloat16 & relu\_0.0 & 95.97 & 0.039276 &  \\
-LayerNorm & bfloat16 & relu\_0.5 & 95.95 & 0.039278 & 0.3125 \\
-LayerNorm & bfloat16 & relu\_1.0 & 95.98 & 0.039275 & 0.6250 \\
-LayerNorm & float32 & gelu & 97.17 & 0.038055 & 0.0625 \\
-LayerNorm & float32 & relu\_0.0 & 97.00 & 0.040178 &  \\
-LayerNorm & float32 & relu\_0.5 & 97.00 & 0.040178 & 1.0000 \\
-LayerNorm & float32 & relu\_1.0 & 97.00 & 0.040178 & 1.0000 \\
-NoNorm & bfloat16 & gelu & 96.11 & 0.038563 & 0.2500 \\
-NoNorm & bfloat16 & relu\_0.0 & 96.05 & 0.039393 &  \\
-NoNorm & bfloat16 & relu\_0.5 & 96.04 & 0.039405 & 0.6250 \\
-NoNorm & bfloat16 & relu\_1.0 & 96.00 & 0.039403 & 0.0625 \\
-NoNorm & float32 & gelu & 97.31 & 0.037028 & 0.0625 \\
-NoNorm & float32 & relu\_0.0 & 97.10 & 0.038899 &  \\
-NoNorm & float32 & relu\_0.5 & 97.10 & 0.038899 & 1.0000 \\
-NoNorm & float32 & relu\_1.0 & 97.10 & 0.038899 & 1.0000 \\
-RMSNorm & bfloat16 & gelu & 96.21 & 0.037806 & 0.0625 \\
-RMSNorm & bfloat16 & relu\_0.0 & 95.98 & 0.039274 &  \\
-RMSNorm & bfloat16 & relu\_0.5 & 95.98 & 0.039276 & 0.8750 \\
-RMSNorm & bfloat16 & relu\_1.0 & 96.00 & 0.039268 & 0.3750 \\
-RMSNorm & float32 & gelu & 97.22 & 0.038048 & 0.0625 \\
-RMSNorm & float32 & relu\_0.0 & 97.01 & 0.040185 &  \\
-RMSNorm & float32 & relu\_0.5 & 97.01 & 0.040185 & 1.0000 \\
-RMSNorm & float32 & relu\_1.0 & 97.01 & 0.040185 & 1.0000 \\
+LayerNorm & bfloat16 & GELU & 96.20 & 0.037898 & 0.0625 \\
+LayerNorm & bfloat16 & ReLU ($s=0$) & 95.97 & 0.039276 & -- \\
+LayerNorm & bfloat16 & ReLU ($s=0.5$) & 95.95 & 0.039278 & 0.3125 \\
+LayerNorm & bfloat16 & ReLU ($s=1$) & 95.98 & 0.039275 & 0.6250 \\
+LayerNorm & float32 & GELU & 97.17 & 0.038055 & 0.0625 \\
+LayerNorm & float32 & ReLU ($s=0$) & 97.00 & 0.040178 & -- \\
+LayerNorm & float32 & ReLU ($s=0.5$) & 97.00 & 0.040178 & 1.0000 \\
+LayerNorm & float32 & ReLU ($s=1$) & 97.00 & 0.040178 & 1.0000 \\
+NoNorm & bfloat16 & GELU & 96.11 & 0.038563 & 0.2500 \\
+NoNorm & bfloat16 & ReLU ($s=0$) & 96.05 & 0.039393 & -- \\
+NoNorm & bfloat16 & ReLU ($s=0.5$) & 96.04 & 0.039405 & 0.6250 \\
+NoNorm & bfloat16 & ReLU ($s=1$) & 96.00 & 0.039403 & 0.0625 \\
+NoNorm & float32 & GELU & 97.31 & 0.037028 & 0.0625 \\
+NoNorm & float32 & ReLU ($s=0$) & 97.10 & 0.038899 & -- \\
+NoNorm & float32 & ReLU ($s=0.5$) & 97.10 & 0.038899 & 1.0000 \\
+NoNorm & float32 & ReLU ($s=1$) & 97.10 & 0.038899 & 1.0000 \\
+RMSNorm & bfloat16 & GELU & 96.21 & 0.037806 & 0.0625 \\
+RMSNorm & bfloat16 & ReLU ($s=0$) & 95.98 & 0.039274 & -- \\
+RMSNorm & bfloat16 & ReLU ($s=0.5$) & 95.98 & 0.039276 & 0.8750 \\
+RMSNorm & bfloat16 & ReLU ($s=1$) & 96.00 & 0.039268 & 0.3750 \\
+RMSNorm & float32 & GELU & 97.22 & 0.038048 & 0.0625 \\
+RMSNorm & float32 & ReLU ($s=0$) & 97.01 & 0.040185 & -- \\
+RMSNorm & float32 & ReLU ($s=0.5$) & 97.01 & 0.040185 & 1.0000 \\
+RMSNorm & float32 & ReLU ($s=1$) & 97.01 & 0.040185 & 1.0000 \\
 \bottomrule
 \end{tabular}

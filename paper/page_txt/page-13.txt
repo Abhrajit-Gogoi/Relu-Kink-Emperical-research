@@ -1,0 +1,31 @@
+Dan Hendrycks and Kevin Gimpel. Gaussian error linear units (GELUs), 2016. URL https:
+//arxiv.org/abs/1606.08415.
+Jan Hückelheim, Harshitha Menon, William Moses, Bruce Christianson, Paul Hovland, and Laurent
+Hascoët. Understanding automatic differentiation pitfalls, 2023. URL https://arxiv.org/abs/
+2305.07546.
+Wonyeol Lee, Hangyeol Yu, Xavier Rival, and Hongseok Yang. On correctness of automatic
+differentiation for non-differentiable functions. In Advances in Neural Information Processing
+Systems, volume 33, pages 6719–6730, 2020. URL https://arxiv.org/abs/2006.06903.
+Wonyeol Lee, Sejun Park, and Alex Aiken. On the correctness of automatic differentiation for
+neural networks with machine-representable parameters. In Proceedings of the 40th International
+Conference on Machine Learning, volume 202 of Proceedings of Machine Learning Research, 2023.
+URL https://arxiv.org/abs/2301.13370.
+Tommaso Martorella, Héctor Manuel Ramirez Contreras, and Daniel Cerezo Garcı́a. [Re] numerical
+influence of ReLU’(0) on backpropagation. ReScience C, 9(2), 2023. doi: 10.5281/zenodo.8173692.
+URL https://zenodo.org/records/8173692.
+Sejun Park, Sanghyuk Chun, and Wonyeol Lee. What does automatic differentiation compute
+for neural networks? In International Conference on Learning Representations, 2024. URL
+https://openreview.net/forum?id=8vKknbgXxf. Spotlight. Park and Chun contributed
+equally.
+Mahsa Salmani, Nikita Trukhanov, and Ilya Soloveychik. SLaNC: Static LayerNorm calibration,
+2024. URL https://arxiv.org/abs/2410.10553.
+Chenyuan Yang, Yinlin Deng, Jiayi Yao, Yuxing Tu, Hanchi Li, and Lingming Zhang. Fuzzing
+automatic differentiation in deep-learning libraries. In IEEE/ACM 45th International Conference
+on Software Engineering, 2023. doi: 10.1109/ICSE48619.2023.00105. URL https://arxiv.org/
+abs/2302.04351.
+Biao Zhang and Rico Sennrich. Root mean square layer normalization. In Advances in Neural
+Information Processing Systems, volume 32, 2019. URL https://arxiv.org/abs/1910.07467.
+
+13
+
+

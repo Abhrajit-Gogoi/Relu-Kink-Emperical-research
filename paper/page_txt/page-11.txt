@@ -1,0 +1,125 @@
+97.10/97.00/97.01; ReLU s = 1: 97.10/97.00/97.01; GELU: 97.31/97.17/97.22. Representative loss
+total variation (FP32): ReLU s = 0: 0.0389/0.0402/0.0402; GELU: 0.0370/0.0381/0.0380. GELU
+achieves strictly lower TVℓ and strictly higher test accuracy than ReLU at s = 0.5 across all six cells.
+0.04
+
+100
+
+precision
+BF16
+
+TVℓ
+
+0.02
+
+0.01
+
+test accuracy (%)
+
+FP32
+
+0.03
+
+0.00
+ReL
+
+80
+60
+40
+20
+0
+
+=
+U (s
+
+0)
+U
+ReL
+
+0
+(s =
+
+.5)
+
+ReL
+
+=
+U (s
+
+1)
+
+U
+GE L
+
+U
+ReL
+
+(s =
+
+0)
+
+activation
+
+U
+ReL
+
+(s =
+
+0.5
+
+)
+U
+ReL
+
+(s =
+
+1)
+
+U
+GE L
+
+activation
+
+Figure 5: Loss total variation (TVℓ ) and test accuracy, ReLU slopes versus GELU (averaged
+over norms and seeds). GELU directionally outperforms ReLU at s=0.5 but the paired test is
+underpowered (R=5, min Wilcoxon p=0.0625). (H4)
+
+5.5
+
+Baseline Reproduction Discrepancy Analysis
+
+The Stage-2 baseline reproduction check (NeurIPS 2021 MLP protocol, CPU, PyTorch 2.14.1+cu130)
+measures an FP32 bifurcation weight proportion of 0.06 (12/200 initializations; 12 of 20,000 impacted
+pairs) in the Monte Carlo arm with M = 200 and Q = 100, versus 0.025 (5/200) for the same FP32
+NoNorm bias-on cell in Experiment 1. The 0.06 figure comes from the Stage-2 Monte Carlo cell,
+not from the 10 trajectory seeds: the trajectory seeds themselves stay at L1 distance 0 for all 200
+steps except where an exact zero occurs, and the median k ⋆ remains 201. The discrepancy arises
+because the Stage-2 script scores 12,800 images on CPU with one thread, whereas Bertoin et al.
+[2021] score the full training set on GPU; the Stage-2 bias draw uses the nn.Linear default while
+Bertoin et al. [2021] do not state a bias law; and the Stage-2 chain rule multiplies the incoming
+gradient by the proxy slope, whereas the original (pre-erratum) implementation assigned the slope
+directly. None of these procedural differences alone explains the gap from Bertoin et al. [2021]’s
+published ∼35–45% FP32 bifurcation proportion. A full-epoch extrapolation of the measured CPU
+pair rate (12/20,000 = 0.0006) over Q = 469 batches of 128 gives 1 − (1 − 0.0006)469 ≈ 0.245, still
+below the 35–45% band. The discrepancy is documented rather than tuned away.
+
+6
+
+Discussion
+
+The four hypotheses are supported as follows. H1: Exact-zero collisions rise as the mantissa
+narrows—BF16 (p̂0 = 2.99 × 10−5 ) exceeds FP16 (3.80 × 10−6 ), which exceeds FP32 (2.54 × 10−9 )
+and FP64 (0)—because BF16 pairs FP32’s 8-bit exponent range with only a 7-bit mantissa, making
+subtractive cancellation w⊤ x + b = 0.0 hit exact zero 23 = 8× more coarsely than FP16 despite
+FP16’s wider mantissa. H2: LayerNorm’s mean subtraction (xi − µ) centers pre-activations at zero
+and concentrates mass at the kink, raising p̂0 relative to RMSNorm’s strictly positive scaling; this
+persists even with bias off (1.12 × 10−4 vs 1.13 × 10−4 for LayerNorm), confirming that centering,
+not additive bias, drives exact-zero collisions. Both norms buffer test-accuracy loss relative to
+unnormalized networks. H3: Twin SGD runs stay bitwise-equal until the first exact zero; Topology
+C’s identity skip path Id bypasses the kink entirely (median k ⋆ = 201 in BF16), preserving gradient
+flow, whereas Topology B’s on-highway residual ReLU places the second ReLU directly on the residual
+sum (median k ⋆ = 1), allowing the Jacobian product to vanish. H4: GELU (GELU′ (0) = 0.5)
+
+11
+
+

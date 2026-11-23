@@ -1,0 +1,122 @@
+5.3
+
+Experiment 2 — coupled trajectory bifurcation and residual topology
+
+For each of 27 cells (topology ∈ {A, B, C}, precision ∈ {FP64, FP32, BF16}, norm ∈
+{NoNorm, LayerNorm, RMSNorm}), R = 10 seeds each ran four coupled copies sharing θ0 and 200
+shared minibatches: s = 0 twice (determinism twin), s = 0.5, s = 1. Output: 108,000 step rows.
+Every seed has a finite k ⋆ , max twin L1 = 0, no NaN in distance columns. See Table 4.
+Key results at step 200 (s = 1 vs s = 0):
+(200)
+
+= 11.81.
+
+(200)
+
+= 42.30.
+
+ BF16, LayerNorm, topology A: median k ⋆ = 1, D1
+ BF16, LayerNorm, topology B: median k ⋆ = 1, D1
+
+(200)
+
+ BF16, LayerNorm, topology C: median k ⋆ = 201 (never splits), D1
+(200)
+
+ BF16, NoNorm, topology B: median k ⋆ = 1, D1
+(200)
+
+ FP64, all cells: median k ⋆ = 201, D1
+
+= 0.
+
+= 53.55.
+
+= 0.
+
+12
+
+(mean over 10 seeds)
+
+BF16 LayerNorm topology A
+
+10
+8
+6
+4
+2
+0
+
+( k)
+
+zmin
+
+D1 s
+
+(k)( = 1) (mean over 10 seeds)
+
+The on-highway residual B splits immediately under BF16 under every norm (median k ⋆ = 1).
+The inside-branch Pre-Norm C resists bifurcation (median k ⋆ = 201 in BF16), supporting H3: the
+identity skip path avoids the kink, delaying divergence. Every first positive L1 is aligned with an
+exact zero (minl,i |z| = 0); the s = 0 twin distance stays 0 at every step.
+
+0
+
+25
+
+50
+
+75
+
+2.5
+
+BF16 LayerNorm topology A
+
+2.0
+1.5
+1.0
+0.5
+0.0
+
+100 125 150 175 200
+step k
+
+1e−5
+
+0
+
+25
+
+50
+
+75
+
+100 125 150 175 200
+step k
+
+(k)
+
+Figure 3: Coupled L1 distance D1 (s=1) and minimum |z| versus step, for BF16 topology A (plain
+MLP, LayerNorm), mean over 10 seeds. Divergence begins at the first exact zero (k ⋆ =1). (H3)
+
+5.4
+
+Experiment 3 — multi-epoch training stability and GELU control
+
+The topology-C residual MLP was trained 10 epochs on MNIST: precision ∈ {FP32, BF16}, norm
+∈ {NoNorm, LayerNorm, RMSNorm}, activation ∈ {ReLU s = 0, 0.5, 1, GELU}, R = 5 paired
+seeds, batch 128, η = 0.01. Output: per-epoch and per-run rows plus paired Wilcoxon tests against
+s = 0. See Table 5.
+GELU vs ReLU s = 0.5 (direct comparison, H4). GELU directionally outperforms ReLU at
+s = 0.5 across all six precision × norm cells: strictly lower loss total variation and strictly higher final
+test accuracy (Table 5). The paired Wilcoxon signed-rank test compares each activation against s = 0;
+GELU vs. s = 0 gives p = 0.0625 for NoNorm/float32, LayerNorm/float32, LayerNorm/bfloat16,
+RMSNorm/float32, and RMSNorm/bfloat16, but p = 0.2500 for NoNorm/bfloat16—the minimum
+mathematically possible two-sided Wilcoxon p-value with R = 5 paired seeds is 2 · (1/2)5 = 0.0625,
+attained when one activation wins on all 5/5 seeds. Direct GELU vs. ReLU(s = 0.5) comparisons
+are not available from the experimental data; all Wilcoxon tests are versus the s = 0 baseline.
+This is directional support but underpowered. Representative final test accuracy (mean over
+seeds, FP32): ReLU s = 0: 97.10/97.00/97.01 (NoNorm/LayerNorm/RMSNorm); ReLU s = 0.5:
+8
+
+

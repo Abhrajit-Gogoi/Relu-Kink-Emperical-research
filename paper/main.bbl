@@ -1,0 +1,97 @@
+\begin{thebibliography}{12}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Ba et~al.(2016)Ba, Kiros, and Hinton]{ba2016layernorm}
+Jimmy~Lei Ba, Jamie~Ryan Kiros, and Geoffrey~E. Hinton.
+\newblock Layer normalization, 2016.
+\newblock URL \url{https://arxiv.org/abs/1607.06450}.
+
+\bibitem[Bertoin et~al.(2021)Bertoin, Bolte, Gerchinovitz, and
+  Pauwels]{bertoin2021relu}
+David Bertoin, J{\'e}r{\^o}me Bolte, S{\'e}bastien Gerchinovitz, and Edouard
+  Pauwels.
+\newblock Numerical influence of {ReLU}'(0) on backpropagation.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~34, pages 468--479, 2021.
+\newblock URL \url{https://arxiv.org/abs/2106.12915}.
+
+\bibitem[Bolte and Pauwels(2021)]{bolte2021conservative}
+J{\'e}r{\^o}me Bolte and Edouard Pauwels.
+\newblock Conservative set valued fields, automatic differentiation, stochastic
+  gradient method and deep learning.
+\newblock \emph{Mathematical Programming}, 188:\penalty0 19--51, 2021.
+\newblock URL \url{https://arxiv.org/abs/1909.10300}.
+
+\bibitem[Hendrycks and Gimpel(2016)]{hendrycks2016gelu}
+Dan Hendrycks and Kevin Gimpel.
+\newblock Gaussian error linear units ({GELUs}), 2016.
+\newblock URL \url{https://arxiv.org/abs/1606.08415}.
+
+\bibitem[H{\"u}ckelheim et~al.(2023)H{\"u}ckelheim, Menon, Moses, Christianson,
+  Hovland, and Hasco{\"e}t]{hueckelheim2023pitfalls}
+Jan H{\"u}ckelheim, Harshitha Menon, William Moses, Bruce Christianson, Paul
+  Hovland, and Laurent Hasco{\"e}t.
+\newblock Understanding automatic differentiation pitfalls, 2023.
+\newblock URL \url{https://arxiv.org/abs/2305.07546}.
+
+\bibitem[Lee et~al.(2020)Lee, Yu, Rival, and Yang]{lee2020nondifferentiable}
+Wonyeol Lee, Hangyeol Yu, Xavier Rival, and Hongseok Yang.
+\newblock On correctness of automatic differentiation for non-differentiable
+  functions.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~33, pages 6719--6730, 2020.
+\newblock URL \url{https://arxiv.org/abs/2006.06903}.
+
+\bibitem[Lee et~al.(2023)Lee, Park, and Aiken]{lee2023machine}
+Wonyeol Lee, Sejun Park, and Alex Aiken.
+\newblock On the correctness of automatic differentiation for neural networks
+  with machine-representable parameters.
+\newblock In \emph{Proceedings of the 40th International Conference on Machine
+  Learning}, volume 202 of \emph{Proceedings of Machine Learning Research},
+  2023.
+\newblock URL \url{https://arxiv.org/abs/2301.13370}.
+
+\bibitem[Martorella et~al.(2023)Martorella, Ramirez~Contreras, and
+  Cerezo~Garc{\'i}a]{martorella2023re}
+Tommaso Martorella, H{\'e}ctor~Manuel Ramirez~Contreras, and Daniel
+  Cerezo~Garc{\'i}a.
+\newblock {[Re]} numerical influence of {ReLU}'(0) on backpropagation.
+\newblock \emph{ReScience C}, 9\penalty0 (2), 2023.
+\newblock \doi{10.5281/zenodo.8173692}.
+\newblock URL \url{https://zenodo.org/records/8173692}.
+
+\bibitem[Park et~al.(2024)Park, Chun, and Lee]{park2024whatadcomputes}
+Sejun Park, Sanghyuk Chun, and Wonyeol Lee.
+\newblock What does automatic differentiation compute for neural networks?
+\newblock In \emph{International Conference on Learning Representations}, 2024.
+\newblock URL \url{https://openreview.net/forum?id=8vKknbgXxf}.
+\newblock Spotlight. Park and Chun contributed equally.
+
+\bibitem[Salmani et~al.(2024)Salmani, Trukhanov, and
+  Soloveychik]{salmani2024slanc}
+Mahsa Salmani, Nikita Trukhanov, and Ilya Soloveychik.
+\newblock {SLaNC}: Static {LayerNorm} calibration, 2024.
+\newblock URL \url{https://arxiv.org/abs/2410.10553}.
+
+\bibitem[Yang et~al.(2023)Yang, Deng, Yao, Tu, Li, and
+  Zhang]{yang2023nablafuzz}
+Chenyuan Yang, Yinlin Deng, Jiayi Yao, Yuxing Tu, Hanchi Li, and Lingming
+  Zhang.
+\newblock Fuzzing automatic differentiation in deep-learning libraries.
+\newblock In \emph{IEEE/ACM 45th International Conference on Software
+  Engineering}, 2023.
+\newblock \doi{10.1109/ICSE48619.2023.00105}.
+\newblock URL \url{https://arxiv.org/abs/2302.04351}.
+
+\bibitem[Zhang and Sennrich(2019)]{zhang2019rmsnorm}
+Biao Zhang and Rico Sennrich.
+\newblock Root mean square layer normalization.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~32, 2019.
+\newblock URL \url{https://arxiv.org/abs/1910.07467}.
+
+\end{thebibliography}
