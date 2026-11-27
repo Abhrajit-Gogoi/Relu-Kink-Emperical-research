@@ -2,7 +2,6 @@ Finite-Precision Proxy Derivatives at the ReLU Kink:
 BFloat16 Arithmetic, LayerNorm versus RMSNorm, and Residual
 Topology
 Abhrajit Gogoi, Atharva Chavan
-Independent Research Manuscript
 November 2026
 
 Abstract
@@ -47,6 +46,7 @@ on/off, and three proxy slopes s ∈ {0, 0.5, 1}, using MNIST and vanilla SGD th
 four hypotheses (H1–H4):
 The manuscript is organized as follows. Section 2 surveys related work on nonsmooth automatic
 differentiation, finite-precision AD pitfalls, and low-precision normalization. Section 3 formalizes
+the mathematical foundations: IEEE-754 bit layouts, the Clarke subdifferential, LayerNorm versus
 1
 
 

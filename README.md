@@ -1,6 +1,6 @@
 # Finite-Precision Proxy Derivatives at the ReLU Kink: BFloat16 Arithmetic, LayerNorm versus RMSNorm, and Residual Topology
 
-**Authors:** Atharva Chavan, Abhrajit Gogoi  
+**Authors:**  Abhrajit Gogoi, Atharva Chavan
 **Document:** Independent Research Manuscript (`paper/main.pdf`, November 2026)
 
 Empirical investigation of how the proxy derivative $s = \mathrm{ReLU}'(0) \in \{0, 0.5, 1\}$ interacts with IEEE-754 floating-point precision ($\mathrm{FP64}$, $\mathrm{FP32}$, $\mathrm{FP16}$, $\mathrm{BF16}$), feature normalization ($\mathrm{LayerNorm}$ versus $\mathrm{RMSNorm}$), additive bias, and residual topology (plain MLP, on-highway residual, and inside-branch Pre-Norm residual FFN) on MNIST under vanilla SGD ($\eta = 0.01$, batch size $128$).
